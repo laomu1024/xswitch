@@ -1,27 +1,46 @@
 {
     // See https://go.microsoft.com/fwlink/?LinkId=733558
     // for the documentation about the tasks.json format
-    "version": "0.1.0",
+    "version": "2.0.0",
     "command": "npm",
-    "isShellCommand": true,
-    "showOutput": "always",
-    "suppressTaskName": true,
     "tasks": [
-        {
-            "taskName": "install",
-            "args": ["install"]
-        },
-        {
-            "taskName": "update",
-            "args": ["update"]
-        },
-        {
-            "taskName": "test",
-            "args": ["run", "test"]
-        },
-        {
-            "taskName": "build",
-            "args": ["run", "watch"]
+      {
+        "label": "install",
+        "type": "shell",
+        "args": [
+          "install"
+        ],
+        "problemMatcher": []
+      },
+      {
+        "label": "update",
+        "type": "shell",
+        "args": [
+          "update"
+        ],
+        "problemMatcher": []
+      },
+      {
+        "label": "test",
+        "type": "shell",
+        "args": [
+          "run",
+          "test"
+        ],
+        "problemMatcher": []
+      },
+      {
+        "label": "build",
+        "type": "shell",
+        "args": [
+          "run",
+          "watch"
+        ],
+        "problemMatcher": [],
+        "group": {
+          "_id": "build",
+          "isDefault": false
         }
+      }
     ]
 }

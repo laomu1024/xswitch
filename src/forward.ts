@@ -65,6 +65,9 @@ class Forward {
     this._config = { ...newValue };
   }
 
+  // Manifest V3下，chrome.webRequest相关类型和拦截逻辑需迁移为declarativeNetRequest规则。
+  // 例如：onHeadersReceivedCallback、onBeforeRequestCallback等函数逻辑需转为规则生成和动态更新。
+
   // Breaking the CORS Limitation
   onHeadersReceivedCallback(
     details: chrome.webRequest.WebResponseHeadersDetails,

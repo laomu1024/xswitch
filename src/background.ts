@@ -74,7 +74,10 @@ csmInstance.get({
   }
 });
 
-function getActiveConfig(config: StorageJSON): object {
+// 使用类型断言，避免TS报错
+const dnr: any = (chrome as any).declarativeNetRequest;
+
+function getActiveConfig(config: StorageJSON): any {
   const activeKeys = [...jsonActiveKeys];
   const json = config['0'];
   activeKeys.forEach((key: string) => {
@@ -111,30 +114,121 @@ csmInstance.get(
   }
 );
 
+/**
+ * 生成 DNR 重定向规则
+ */
+function generateRedirectRules(proxyRules: string[][], ruleIdStart = 1) {
+  const rules = [];
+  let id = ruleIdStart;
+  for (const [from, to] of proxyRules) {
+    rules.push({
+      id: id++,
+      priority: 1,
+      action: {
+        type: "redirect",
+        redirect: { regexSubstitution: to }
+      },
+      condition: {
+        regexFilter: from,
+        resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest", "script", "stylesheet", "image", "font", "other"]
+      }
+    });
+  }
+  return rules;
+}
 
+/**
+ * 生成 DNR CORS 规则
+ */
+function generateCORSRules(corsRules: string[], ruleIdStart = 10000) {
+  const rules = [];
+  let id = ruleIdStart;
+  for (const corsUrl of corsRules) {
+    rules.push({
+      id: id++,
+      priority: 1,
+      action: {
+        type: "modifyHeaders",
+        responseHeaders: [
+          { header: "Access-Control-Allow-Origin", operation: "set", value: "*" },
+          { header: "Access-Control-Allow-Methods", operation: "set", value: "GET, POST, PUT, DELETE, OPTIONS" },
+          { header: "Access-Control-Allow-Headers", operation: "set", value: "*" },
+          { header: "Access-Control-Allow-Credentials", operation: "set", value: "true" }
+        ]
+      },
+      condition: {
+        urlFilter: corsUrl,
+        resourceTypes: ["xmlhttprequest", "main_frame", "sub_frame", "script", "stylesheet", "image", "font", "other"]
+      }
+    });
+  }
+  return rules;
+}
+
+/**
+ * 更新 DNR 动态规则
+ */
+async function updateDNRRules(proxyRules: string[][], corsRules: string[]) {
+  // 先移除所有动态规则
+  const allIds = [];
+  for (let i = 1; i < 10000; i++) allIds.push(i);
+  for (let i = 10000; i < 20000; i++) allIds.push(i);
+
+  await dnr.updateDynamicRules({
+    removeRuleIds: allIds,
+    addRules: [
+      ...generateRedirectRules(proxyRules, 1),
+      ...generateCORSRules(corsRules, 10000)
+    ]
+  });
+}
+
+/**
+ * 监听配置变化，动态更新规则
+ */
+function refreshRulesFromStorage() {
+  csmInstance.get({
+    [JSON_CONFIG]: {
+      0: {
+        [PROXY_STORAGE_KEY]: [],
+        [CORS_STORAGE]: [],
+      },
+    },
+    [ACTIVE_KEYS]: ['0'],
+  }, (result: any) => {
+    let proxyRules: string[][] = [];
+    let corsRules: string[] = [];
+    if (result && result[JSON_CONFIG]) {
+      const config = getActiveConfig(result[JSON_CONFIG]);
+      proxyRules = config[PROXY_STORAGE_KEY] || [];
+      corsRules = config[CORS_STORAGE] || [];
+    }
+    updateDNRRules(proxyRules, corsRules);
+  });
+}
+
+// 初始化时加载规则
+refreshRulesFromStorage();
+
+// 监听 storage 变化，自动刷新规则
 chrome.storage.onChanged.addListener((changes) => {
-
+  refreshRulesFromStorage();
   if (changes[ACTIVE_KEYS]) {
     jsonActiveKeys = changes[ACTIVE_KEYS].newValue;
   }
-
   if (changes[JSON_CONFIG]) {
     const config = getActiveConfig(changes[JSON_CONFIG].newValue);
     forward[JSON_CONFIG] = { ...config };
   }
-
   if (changes[DISABLED]) {
     forward[DISABLED] = changes[DISABLED].newValue;
   }
-
   if (changes[CLEAR_CACHE_ENABLED]) {
     clearCacheEnabled = changes[CLEAR_CACHE_ENABLED].newValue === Enabled.YES;
   }
-
   if (changes[CORS_ENABLED_STORAGE_KEY]) {
     corsEnabled = changes[CORS_ENABLED_STORAGE_KEY].newValue === Enabled.YES;
   }
-
   csmInstance.get({
     [JSON_CONFIG]: {
       0: {
@@ -150,41 +244,8 @@ chrome.storage.onChanged.addListener((changes) => {
     }
     setIcon();
   });
-
-  checkAndChangeIcons()
+  checkAndChangeIcons();
 });
-
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    if (forward[DISABLED] !== Enabled.NO) {
-      if (clearCacheEnabled) {
-        clearCache();
-      }
-
-      return forward.onBeforeRequestCallback(details);
-    }
-    return {};
-  },
-  {
-    urls: [ALL_URLS],
-  },
-  [BLOCKING]
-);
-
-// Breaking the CORS Limitation
-chrome.webRequest.onHeadersReceived.addListener(
-  headersReceivedListener,
-  {
-    urls: [ALL_URLS],
-  },
-  [BLOCKING, RESPONSE_HEADERS]
-);
-
-chrome.webRequest.onBeforeSendHeaders.addListener(
-  (details) => forward.onBeforeSendHeadersCallback(details),
-  { urls: [ALL_URLS] },
-  [BLOCKING, REQUEST_HEADERS]
-);
 
 function setBadgeAndBackgroundColor(
   text: string | number,
