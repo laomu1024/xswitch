@@ -349,12 +349,8 @@ export function setOptions(options: any): Promise<OptionsStorage> {
 }
 
 export function openLink(url: string, isInner: boolean = false): void {
-  chrome.tabs.create(
-    { url: isInner ? chrome.extension.getURL(url) : url },
-    (tab) => {
-      // Tab opened.
-    }
-  );
+  const finalUrl = isInner && chrome.runtime ? chrome.runtime.getURL(url) : url;
+  chrome.tabs.create({ url: finalUrl });
 }
 
 

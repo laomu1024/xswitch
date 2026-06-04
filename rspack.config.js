@@ -107,8 +107,8 @@ const devConfig = {
     ],
     historyApiFallback: {
       rewrites: [
+        { from: /^\/XSwitch\.html$/, to: '/index.html' },
         { from: /^\/options\.html$/, to: '/options.html' },
-        { from: /./, to: '/index.html' },
       ],
     },
   },

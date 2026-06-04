@@ -11,6 +11,7 @@ if (rootEl) {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<XSwitch />} />
+          <Route path="/XSwitch.html" element={<XSwitch />} />
           <Route path="/options.html" element={<Options />} />
         </Routes>
       </BrowserRouter>
