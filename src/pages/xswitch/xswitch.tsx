@@ -324,16 +324,17 @@ export default function XSwitch() {
 
   const remove = async (item: ConfigItem, ev?: React.MouseEvent) => {
     ev?.stopPropagation();
-    const i = items.indexOf(item);
+    const i = items.findIndex((it) => it.id === item.id);
     if (i < 0) {
       return;
     }
-    const next = items.filter((_, idx) => idx !== i);
+    const next = items.filter((it) => it.id !== item.id);
     setItems(next);
     if (i > 0 && next[i - 1]) {
       await setEditingKeyHandler(next[i - 1].id);
     }
-    setConfigItems(next);
+    await setConfigItems(next);
+    removeUnusedItems();
   };
 
   const startRename = (item: ConfigItem) => {
