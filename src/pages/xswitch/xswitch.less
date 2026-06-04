@@ -1,3 +1,9 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
 ::-webkit-scrollbar {
   display: none;
 }
@@ -62,7 +68,7 @@
     padding: 10px;
     z-index: 3;
     background: #fff;
-    width: 100%;
+    width: calc(100% - 20px);
     position: relative;
     .confirm-button{
       position: absolute;
@@ -95,14 +101,63 @@
   right: 20px;
   top: 13px;
   z-index: 1;
-  cursor: pointer;
   display: flex;
   flex-direction: row;
+  align-items: center;
   justify-content: space-around;
-}
+  gap: 4px;
 
-.switch-control {
-  width: 50px;
+  a {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .xswitch-toggle.ant-switch {
+    min-width: 48px;
+    height: 24px;
+    line-height: 22px;
+    background-color: #d9d9d9;
+    border: none;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+
+    &::after {
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
+      transition: transform 0.2s ease, width 0.2s ease, left 0.2s ease;
+    }
+
+    &:not(.ant-switch-checked):hover:not(.ant-switch-disabled) {
+      background-color: #bfbfbf;
+    }
+
+    &.ant-switch-checked {
+      background-color: #1890ff;
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+
+      &::after {
+        left: calc(100% - 2px);
+        transform: translateX(-100%);
+      }
+
+      &:hover:not(.ant-switch-disabled) {
+        background-color: #40a9ff;
+      }
+    }
+
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+    }
+
+    &:active:not(.ant-switch-disabled)::after {
+      width: 22px;
+    }
+  }
 }
 
 .xswitch-icon {
