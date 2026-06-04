@@ -7,8 +7,8 @@
     "url": "git@github.com:yize/xswitch.git"
   },
   "scripts": {
-    "start": "nowa2 start",
-    "build": "TYPESCRIPT_NO_CHECK=true nowa2 build && cp -rf images lib XSwitch.html options.html manifest.json build",
+    "build": "rspack build -c rspack.config.js && cp -rf images lib XSwitch.html options.html manifest.json build",
+    "dev": "RSPACK_DEV=1 rspack serve -c rspack.config.js --port 8088",
     "pub": "npm run build && npm t && sh pub.sh",
     "test": "jest",
     "ci": "jest --coverage && cat ./coverage/lcov.info | coveralls"
@@ -22,26 +22,36 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@ali/recore": "^1.0.10",
-    "antd": "^3.9.2"
+    "@ant-design/icons": "^5.6.1",
+    "antd": "^5.29.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.15.1"
   },
   "devDependencies": {
     "@ali/nowa-recore-solution": "1.7.0",
     "@ali/recore-loader": "^1.0.0",
     "@nowa/cli": "^0.6.0",
+    "@rspack/cli": "^2.0.3",
+    "@rspack/core": "^2.0.3",
+    "@rspack/dev-server": "^2.0.1",
     "@types/chrome": "^0.0.73",
     "@types/jest": "^23.3.2",
     "@types/node": "^10.9.4",
-    "@types/react": "^16",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "agentation": "^3.0.2",
     "coveralls": "^3.0.2",
     "css-loader": "^1.0.0",
     "html-webpack-plugin": "^3.2.0",
     "jest": "^23.6.0",
+    "less": "^4.6.4",
+    "less-loader": "^12.3.2",
     "mini-css-extract-plugin": "^0.4.2",
     "monaco": "^1.201704190613.0+9ac64297a3b2ace5240299ba54b03f5029378397",
     "ts-jest": "^23.1.4",
     "ts-loader": "~5.0.0",
-    "typescript": "~3.0.3",
+    "typescript": "~5.7.0",
     "webpack": "~4.17.2",
     "webpack-cli": "~3.1.0",
     "webpack-merge": "~4.1.4"

@@ -9,6 +9,7 @@ import {
   ACTIVE_KEYS,
   USE_CHROME_STORAGE_SYNC_FN,
   SYNC_STORAGE_DATA_HAS_BEEN_MIGARATED_TO_LOCAL,
+  DEFAULT_DATA,
 } from './constants';
 import { JSONC2JSON, JSON_Parse } from './utils';
 import { Enabled } from './enums';
@@ -119,11 +120,7 @@ checkAndSyncHistorialSyncStorageDataToLocal();
 export function getConfig(editingConfigKey: string): Promise<ConfigStorage> {
   return new Promise((resolve) => {
     if (process.env.NODE_ENV !== 'production') {
-      return resolve({
-        [JSONC_CONFIG]: {
-          0: '',
-        },
-      });
+      return resolve(DEFAULT_DATA);
     }
     csmInstance.get({
       [JSONC_CONFIG]: {
@@ -170,13 +167,11 @@ export function setActiveKeys(keys?: string[]): Promise<object> | void {
 export function getConfigItems(): Promise<any> {
   return new Promise((resolve) => {
     if (process.env.NODE_ENV !== 'production') {
-      return resolve({
-        [TAB_LIST]: [{
-          id: '0',
-          name: 'Current',
-          active: true,
-        }],
-      });
+      return resolve([{
+        id: '0',
+        name: 'Current',
+        active: true,
+      }]);
     }
     csmInstance.get(
       {
