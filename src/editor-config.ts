@@ -13,6 +13,7 @@ export function getEditorConfig(value: string): object {
     minimap: {
       enabled: false,
     },
+    automaticLayout: true,
     fontFamily: DEFAULT_FONT_FAMILY,
     fontSize: 13,
 
@@ -20,6 +21,11 @@ export function getEditorConfig(value: string): object {
     scrollBeyondLastLine: false,
     folding: true,
     showFoldingControls: SHOW_FOLDING_CONTROLS,
+    wordWrap: 'on',
+    wrappingStrategy: 'simple',
+    wordWrapBreakAfterCharacters:
+      ' \t})]?|/&.,;¦`~!@#$%^*-=+:<>"\'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+    wordWrapBreakBeforeCharacters: '([{',
 
     useTabStops: true,
     wordBasedSuggestions: true,

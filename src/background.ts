@@ -15,7 +15,6 @@ import {
   USE_CHROME_STORAGE_SYNC_FN,
   GREY_ICON_PATH,
   BLUE_ICON_PATH,
-  DARK_MODE_MEDIA,
 } from './constants';
 import {
   BadgeText,
@@ -251,11 +250,16 @@ function setBadgeAndBackgroundColor(
   text: string | number,
   color: string
 ): void {
-  const { browserAction } = chrome;
-  browserAction.setBadgeText({
+  // MV3: chrome.browserAction has been replaced by chrome.action.
+  const action =
+    (chrome as any).action || (chrome as any).browserAction;
+  if (!action) {
+    return;
+  }
+  action.setBadgeText({
     text: EMPTY_STRING + text,
   });
-  browserAction.setBadgeBackgroundColor({
+  action.setBadgeBackgroundColor({
     color,
   });
 }
@@ -299,12 +303,17 @@ function clearCache(): void {
 }
 
 function checkAndChangeIcons() {
-  const isDarkMode = window.matchMedia(DARK_MODE_MEDIA);
-  if (isDarkMode && isDarkMode.matches) {
-    chrome.browserAction.setIcon({ path: BLUE_ICON_PATH });
-  } else {
-    chrome.browserAction.setIcon({ path: GREY_ICON_PATH });
+  // MV3 service worker has no `window`/`matchMedia`, so the original
+  // dark-mode based icon switching cannot run here. Fall back to
+  // toggling the icon according to the enabled state of the extension:
+  // blue when active, grey when disabled.
+  const action =
+    (chrome as any).action || (chrome as any).browserAction;
+  if (!action) {
+    return;
   }
+  const enabled = forward[DISABLED] !== Enabled.NO;
+  action.setIcon({ path: enabled ? BLUE_ICON_PATH : GREY_ICON_PATH });
 }
 
 // check when extension is loaded

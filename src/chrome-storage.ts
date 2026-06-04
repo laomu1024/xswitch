@@ -22,27 +22,83 @@ interface OptionsStorage {
   [CORS_ENABLED_STORAGE_KEY]: string;
 }
 
+const LOCAL_STORAGE_PREFIX = 'xswitch_';
+
+/**
+ * 本地开发环境下使用 localStorage 模拟 chrome.storage.local 的 get/set API
+ */
+class LocalStorageAdapter {
+  private _getStore(): Record<string, any> {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'store');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private _setStore(store: Record<string, any>) {
+    localStorage.setItem(LOCAL_STORAGE_PREFIX + 'store', JSON.stringify(store));
+  }
+
+  get(keyOrObj: any, callback: Function) {
+    const store = this._getStore();
+    const result: Record<string, any> = {};
+
+    if (typeof keyOrObj === 'string') {
+      // get('key', cb) → returns {key: storedValue | undefined}
+      result[keyOrObj] = store[keyOrObj];
+    } else if (Array.isArray(keyOrObj)) {
+      // get(['key1', 'key2'], cb)
+      keyOrObj.forEach((key: string) => {
+        result[key] = store[key];
+      });
+    } else if (typeof keyOrObj === 'object') {
+      // get({key: defaultValue}, cb) → returns {key: storedValue || defaultValue}
+      Object.keys(keyOrObj).forEach((key) => {
+        result[key] = store.hasOwnProperty(key) ? store[key] : keyOrObj[key];
+      });
+    }
+
+    // 模拟异步回调
+    setTimeout(() => callback(result), 0);
+  }
+
+  set(obj: any, callback?: Function) {
+    const store = this._getStore();
+    Object.keys(obj).forEach((key) => {
+      store[key] = obj[key];
+    });
+    this._setStore(store);
+    // 模拟异步回调
+    if (callback) {
+      setTimeout(() => callback(), 0);
+    }
+  }
+}
+
 interface ChromeStorageManagerProps {
   useChromeStorageSyncFn: boolean;
 }
 export class ChromeStorageManager {
   private storageFn: any;
-  
+
   constructor(props: ChromeStorageManagerProps) {
-    /** 
-    **  More details: https://developer.chrome.com/extensions/storage
-    **
-    **  Property limit between storage.sync and storage.local in QUOTA_BYTES: 
-    **  QUOTA_BYTES_PER_ITEM prop in storage.sync is 8,192 and
-    **  QUOTA_BYTES prop in storage.sync is 102,400,
-    **  which indicates the maximum total amount (in bytes) of data that can be stored in sync storage.sync.
-    **  Updates that would cause this limit to be exceeded fail immediately and set runtime.lastError.  
-    **
-    **  QUOTA_BYTES prop in storage.local is 5,242,880, 
-    **  which indicates the maximum amount (in bytes) of data that can be stored in local storage, 
-    **  as measured by the JSON stringification of every value plus every key's length.
-    */
-    this.storageFn = props.useChromeStorageSyncFn ? window.chrome.storage.sync : window.chrome.storage.local;
+    if (process.env.NODE_ENV !== 'production') {
+      // 本地开发环境使用 localStorage 适配器
+      this.storageFn = new LocalStorageAdapter();
+    } else {
+      /**
+      **  More details: https://developer.chrome.com/extensions/storage
+      **
+      **  QUOTA_BYTES prop in storage.local is 5,242,880,
+      **  which indicates the maximum amount (in bytes) of data that can be stored in local storage,
+      **  as measured by the JSON stringification of every value plus every key's length.
+      */
+      // Use the global `chrome` directly so this works in both page contexts
+      // and the MV3 service worker (which has no `window`).
+      this.storageFn = props.useChromeStorageSyncFn ? chrome.storage.sync : chrome.storage.local;
+    }
   }
 
   get(keyOrObj: any, callback: Function = (args: any): any => {}) {
@@ -81,7 +137,7 @@ function checkAndSyncHistorialSyncStorageDataToLocal() {
   };
 
   // Code below is only for migaration testing
-  // 
+  //
   // csmInstance.set({
   //   [SYNC_STORAGE_DATA_HAS_BEEN_MIGARATED_TO_LOCAL]: {
   //     migarated: false,
@@ -114,34 +170,29 @@ function checkAndSyncHistorialSyncStorageDataToLocal() {
   })
 }
 
-checkAndSyncHistorialSyncStorageDataToLocal();
+// 仅在插件环境执行历史数据迁移
+if (process.env.NODE_ENV === 'production') {
+  checkAndSyncHistorialSyncStorageDataToLocal();
+}
 
 
-export function getConfig(editingConfigKey: string): Promise<ConfigStorage> {
+export function getConfig(editingConfigKey: string): Promise<any> {
   return new Promise((resolve) => {
-    if (process.env.NODE_ENV !== 'production') {
-      return resolve(DEFAULT_DATA);
-    }
     csmInstance.get({
       [JSONC_CONFIG]: {
-        0: '',
+        0: DEFAULT_DATA,
       },
     }, (result: any) => {
       if (typeof result[JSONC_CONFIG] === 'string') {
         return resolve(result[JSONC_CONFIG]);
       }
-      resolve(result[JSONC_CONFIG][editingConfigKey]);
+      resolve(result[JSONC_CONFIG][editingConfigKey] || DEFAULT_DATA);
     });
   });
 }
 
 export function getActiveKeys(): Promise<any> {
   return new Promise((resolve) => {
-    if (process.env.NODE_ENV !== 'production') {
-      return resolve({
-        [ACTIVE_KEYS]: ['0'],
-      });
-    }
     csmInstance.get(
       {
         [ACTIVE_KEYS]: ['0'],
@@ -151,28 +202,19 @@ export function getActiveKeys(): Promise<any> {
   });
 }
 
-export function setActiveKeys(keys?: string[]): Promise<object> | void {
-  if (process.env.NODE_ENV === 'production') {
-    return new Promise((resolve) => {
-      csmInstance.set(
-        {
-          [ACTIVE_KEYS]: keys,
-        },
-        resolve
-      );
-    });
-  }
+export function setActiveKeys(keys?: string[]): Promise<object> {
+  return new Promise((resolve) => {
+    csmInstance.set(
+      {
+        [ACTIVE_KEYS]: keys,
+      },
+      resolve
+    );
+  });
 }
 
 export function getConfigItems(): Promise<any> {
   return new Promise((resolve) => {
-    if (process.env.NODE_ENV !== 'production') {
-      return resolve([{
-        id: '0',
-        name: 'Current',
-        active: true,
-      }]);
-    }
     csmInstance.get(
       {
         [TAB_LIST]: [{
@@ -186,29 +228,24 @@ export function getConfigItems(): Promise<any> {
   });
 }
 
-export function setConfigItems(items?: any): Promise<object> | void {
-  if (process.env.NODE_ENV === 'production') {
-    return new Promise((resolve) => {
-      csmInstance.set(
-        {
-          [TAB_LIST]: items.slice(),
-          [ACTIVE_KEYS]: items.map((item: any) => {
-            if (item.active) {
-              return item.id;
-            }
-          }),
-        },
-        resolve
-      );
-    });
-  }
+export function setConfigItems(items?: any): Promise<object> {
+  return new Promise((resolve) => {
+    csmInstance.set(
+      {
+        [TAB_LIST]: items.slice(),
+        [ACTIVE_KEYS]: items.map((item: any) => {
+          if (item.active) {
+            return item.id;
+          }
+        }),
+      },
+      resolve
+    );
+  });
 }
 
 export function getEditingConfigKey(): Promise<string> {
   return new Promise((resolve) => {
-    if (process.env.NODE_ENV !== 'production') {
-      return resolve('0');
-    }
     csmInstance.get(
       {
         [EDITING_CONFIG_KEY]: '0',
@@ -218,85 +255,70 @@ export function getEditingConfigKey(): Promise<string> {
   });
 }
 
-export function setEditingConfigKey(key: string): Promise<object> | void {
-  if (process.env.NODE_ENV === 'production') {
-    return new Promise((resolve) => {
+export function setEditingConfigKey(key: string): Promise<object> {
+  return new Promise((resolve) => {
+    csmInstance.set(
+      {
+        [EDITING_CONFIG_KEY]: key,
+      },
+      resolve
+    );
+  });
+}
+
+export function saveConfig(jsonc: string, editingConfigKey: string): Promise<any> {
+  const json = JSONC2JSON(jsonc);
+
+  return new Promise((resolve) => {
+    csmInstance.get({
+      [JSONC_CONFIG]: {},
+      [JSON_CONFIG]: {},
+    }, (result: any) => {
+      // migrate
+      if (typeof result[JSONC_CONFIG] === 'string') {
+        result[JSONC_CONFIG] = {};
+        result[JSON_CONFIG] = {};
+      }
+
+      result[JSONC_CONFIG][editingConfigKey] = jsonc;
+
+      JSON_Parse(json, (error, parsedJSON) => {
+        if (!error) {
+          result[JSON_CONFIG][editingConfigKey] = parsedJSON;
+          return;
+        }
+        result[JSON_CONFIG][editingConfigKey] = '';
+      });
+
       csmInstance.set(
-        {
-          [EDITING_CONFIG_KEY]: key,
-        },
+        result,
         resolve
       );
     });
-  }
-}
-
-export function saveConfig(jsonc: string, editingConfigKey: string): Promise<any> | void {
-  const json = JSONC2JSON(jsonc);
-
-  if (process.env.NODE_ENV === 'production') {
-    return new Promise((resolve) => {
-      csmInstance.get({
-        [JSONC_CONFIG]: {},
-        [JSON_CONFIG]: {},
-      }, (result: any) => {
-        // migrate
-        if (typeof result[JSONC_CONFIG] === 'string') {
-          result[JSONC_CONFIG] = {};
-          result[JSON_CONFIG] = {};
-        }
-
-        result[JSONC_CONFIG][editingConfigKey] = jsonc;
-
-        JSON_Parse(json, (error, parsedJSON) => {
-          if (!error) {
-            result[JSON_CONFIG][editingConfigKey] = parsedJSON;
-            return;
-          }
-          result[JSON_CONFIG][editingConfigKey] = '';
-        });
-
-        csmInstance.set(
-          result,
-          resolve
-        );
-      });
-    });
-  }
+  });
 }
 
 export function getChecked(): Promise<string> {
   return new Promise((resolve) => {
-    if (process.env.NODE_ENV !== 'production') {
-      return resolve(Enabled.YES);
-    }
-    csmInstance.get(DISABLED, (result: any) => {
+    csmInstance.get({ [DISABLED]: Enabled.YES }, (result: any) => {
       resolve(result[DISABLED]);
     });
   });
 }
 
-export function setChecked(checked?: boolean): Promise<object> | void {
-  if (process.env.NODE_ENV === 'production') {
-    return new Promise((resolve) => {
-      csmInstance.set(
-        {
-          [DISABLED]: checked ? Enabled.YES : Enabled.NO,
-        },
-        resolve
-      );
-    });
-  }
+export function setChecked(checked?: boolean): Promise<object> {
+  return new Promise((resolve) => {
+    csmInstance.set(
+      {
+        [DISABLED]: checked ? Enabled.YES : Enabled.NO,
+      },
+      resolve
+    );
+  });
 }
 
 export function getOptions(): Promise<OptionsStorage> {
   return new Promise((resolve) => {
-    if (process.env.NODE_ENV !== 'production') {
-      return resolve({
-        [CLEAR_CACHE_ENABLED]: Enabled.YES,
-        [CORS_ENABLED_STORAGE_KEY]: Enabled.YES,
-      });
-    }
     csmInstance.get(
       {
         [CLEAR_CACHE_ENABLED]: Enabled.YES,
@@ -312,20 +334,18 @@ export function getOptions(): Promise<OptionsStorage> {
   });
 }
 
-export function setOptions(options: any): Promise<OptionsStorage> | void {
-  if (process.env.NODE_ENV === 'production') {
-    return new Promise((resolve) => {
-      csmInstance.set(
-        {
-          clearCacheEnabled: options.clearCacheEnabled
-            ? Enabled.YES
-            : Enabled.NO,
-          corsEnabled: options.corsEnabled ? Enabled.YES : Enabled.NO,
-        },
-        resolve
-      );
-    });
-  }
+export function setOptions(options: any): Promise<OptionsStorage> {
+  return new Promise((resolve) => {
+    csmInstance.set(
+      {
+        clearCacheEnabled: options.clearCacheEnabled
+          ? Enabled.YES
+          : Enabled.NO,
+        corsEnabled: options.corsEnabled ? Enabled.YES : Enabled.NO,
+      },
+      resolve
+    );
+  });
 }
 
 export function openLink(url: string, isInner: boolean = false): void {

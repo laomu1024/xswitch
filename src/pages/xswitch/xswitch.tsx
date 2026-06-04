@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Switch, Checkbox, Input, Popconfirm, message } from 'antd';
+import { Switch, Checkbox, Input, Dropdown, Modal, message } from 'antd';
+import type { InputRef } from 'antd';
+import type { MenuProps } from 'antd';
 import {
-  DeleteOutlined,
   EditTwoTone,
   QuestionCircleTwoTone,
   CodeTwoTone,
+  MoreOutlined,
 } from '@ant-design/icons';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 
@@ -51,9 +53,16 @@ let editor: any;
 export default function XSwitch() {
   const [checked, setChecked] = useState(true);
   const [editingKey, setEditingKey] = useState('0');
+  const [draggingKey, setDraggingKey] = useState('');
   const [dragoverKey, setDragoverKey] = useState('');
+  const [dragoverPosition, setDragoverPosition] = useState<'top' | 'bottom'>(
+    'bottom'
+  );
   const [newItem, setNewItem] = useState('');
   const [items, setItems] = useState<ConfigItem[]>([]);
+  const [renamingKey, setRenamingKey] = useState('');
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<InputRef>(null);
 
   const tabsRef = useRef<HTMLUListElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -192,54 +201,84 @@ export default function XSwitch() {
   };
 
   const dragStart = (ev: React.DragEvent<HTMLLIElement>) => {
+    if (ev.currentTarget.id === '0') {
+      ev.preventDefault();
+      return;
+    }
     ev.dataTransfer.setData('application/my-app', ev.currentTarget.id);
     ev.dataTransfer.effectAllowed = 'move';
+    setDraggingKey(ev.currentTarget.id);
   };
 
   const dragOver = (ev: React.DragEvent<HTMLLIElement>) => {
     ev.preventDefault();
     const li = (ev.target as HTMLElement).closest('li');
     if (li?.id) {
+      const rect = li.getBoundingClientRect();
+      let isTop = ev.clientY - rect.top < rect.height / 2;
+      // Default "Current" item must always stay at top:
+      // never allow inserting another item above it.
+      if (li.id === '0') {
+        isTop = false;
+      }
       setDragoverKey(li.id);
+      setDragoverPosition(isTop ? 'top' : 'bottom');
     }
     ev.dataTransfer.dropEffect = 'move';
   };
 
+  const dragEnd = () => {
+    setDraggingKey('');
+    setDragoverKey('');
+  };
+
   const drop = (ev: React.DragEvent<HTMLLIElement>) => {
     ev.preventDefault();
-    const id = ev.dataTransfer.getData('application/my-app');
-    const targetId = (ev.target as HTMLElement).closest('li')?.id;
+    const srcId = ev.dataTransfer.getData('application/my-app');
+    const targetLi = (ev.target as HTMLElement).closest('li');
+    const targetId = targetLi?.id;
+    let position: 'top' | 'bottom' = dragoverPosition;
+    if (targetLi) {
+      const rect = targetLi.getBoundingClientRect();
+      position = ev.clientY - rect.top < rect.height / 2 ? 'top' : 'bottom';
+    }
+    // Default "Current" item must always stay at top.
+    if (targetId === '0') {
+      position = 'bottom';
+    }
+    setDraggingKey('');
     setDragoverKey('');
-    if (targetId) {
-      swapItem(id, targetId);
+    if (srcId && targetId) {
+      reorderItem(srcId, targetId, position);
     }
   };
 
-  const swapItem = (srcItemId: string, destItemId: string) => {
-    let srcItemIdx = -1;
-    let destItemIdx = -1;
-    let srcItem: ConfigItem | undefined;
-    let destItem: ConfigItem | undefined;
-
-    items.forEach((item, idx) => {
-      if (item.id === srcItemId) {
-        srcItemIdx = idx;
-        srcItem = item;
-      }
-      if (item.id === destItemId) {
-        destItemIdx = idx;
-        destItem = item;
-      }
-    });
-
-    if (!srcItem || !destItem || srcItemIdx < 0 || destItemIdx < 0) {
-      console.warn('srcItem or destItem is undefined, swap aborted.');
+  const reorderItem = (
+    srcItemId: string,
+    destItemId: string,
+    position: 'top' | 'bottom'
+  ) => {
+    // Default "Current" item is pinned at the top.
+    if (srcItemId === '0') {
       return;
     }
-
+    if (srcItemId === destItemId) {
+      return;
+    }
+    const srcIdx = items.findIndex((i) => i.id === srcItemId);
+    if (srcIdx < 0 || items.findIndex((i) => i.id === destItemId) < 0) {
+      return;
+    }
     const next = [...items];
-    next[srcItemIdx] = destItem;
-    next[destItemIdx] = srcItem;
+    const [moved] = next.splice(srcIdx, 1);
+    let insertIdx = next.findIndex((i) => i.id === destItemId);
+    if (insertIdx < 0) {
+      return;
+    }
+    if (position === 'bottom') {
+      insertIdx += 1;
+    }
+    next.splice(insertIdx, 0, moved);
     setItems(next);
     setConfigItems(next);
   };
@@ -297,6 +336,69 @@ export default function XSwitch() {
     setConfigItems(next);
   };
 
+  const startRename = (item: ConfigItem) => {
+    setRenamingKey(item.id);
+    setRenameValue(item.name);
+    setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 0);
+  };
+
+  const cancelRename = () => {
+    setRenamingKey('');
+    setRenameValue('');
+  };
+
+  const commitRename = (item: ConfigItem) => {
+    const trimmed = renameValue.trim();
+    if (trimmed === '') {
+      message.error('Rule name should not be an empty string!');
+      return;
+    }
+    if (trimmed === item.name) {
+      cancelRename();
+      return;
+    }
+    const next = items.map((i) =>
+      i.id === item.id ? { ...i, name: trimmed } : i
+    );
+    setItems(next);
+    setConfigItems(next);
+    cancelRename();
+  };
+
+  const confirmDelete = (item: ConfigItem) => {
+    Modal.confirm({
+      title: 'Are you sure to delete?',
+      content: item.name,
+      okText: 'Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancel',
+      onOk: () => remove(item),
+    });
+  };
+
+  const getMenuItems = (item: ConfigItem): MenuProps['items'] => [
+    {
+      key: 'rename',
+      label: 'Rename',
+      onClick: ({ domEvent }) => {
+        domEvent.stopPropagation();
+        startRename(item);
+      },
+    },
+    {
+      key: 'delete',
+      label: 'Delete',
+      danger: true,
+      onClick: ({ domEvent }) => {
+        domEvent.stopPropagation();
+        confirmDelete(item);
+      },
+    },
+  ];
+
   return (
     <>
       <div className="xswitch-wrapper">
@@ -308,14 +410,18 @@ export default function XSwitch() {
                 id={item.id}
                 className={[
                   item.id === editingKey ? 'editing' : '',
-                  item.id === dragoverKey ? 'dragovering' : '',
+                  item.id === draggingKey ? 'dragging' : '',
+                  item.id === dragoverKey && item.id !== draggingKey
+                    ? `dragover-${dragoverPosition}`
+                    : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                draggable
+                draggable={item.id !== '0'}
                 onClick={() => onTabClick(item)}
                 onDragStart={dragStart}
                 onDragOver={dragOver}
+                onDragEnd={dragEnd}
                 onDrop={drop}
               >
                 <Checkbox
@@ -324,17 +430,37 @@ export default function XSwitch() {
                   disabled={item.id === '0'}
                   onClick={(e) => e.stopPropagation()}
                 />
-                <span className="label">&nbsp;{item.name}</span>
-                <Popconfirm
-                  title="Are you sure to delete?"
-                  onConfirm={() => remove(item)}
-                >
-                  <DeleteOutlined
-                    className="delete-icon"
-                    style={{ color: '#f5222d' }}
+                {item.id === renamingKey ? (
+                  <Input
+                    ref={renameInputRef}
+                    size="small"
+                    className="rename-input"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
+                    onPressEnter={() => commitRename(item)}
+                    onBlur={() => commitRename(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        cancelRename();
+                      }
+                    }}
                   />
-                </Popconfirm>
+                ) : (
+                  <span className="label">&nbsp;{item.name}</span>
+                )}
+                {item.id !== '0' && item.id !== renamingKey && (
+                  <Dropdown
+                    menu={{ items: getMenuItems(item) }}
+                    trigger={['click']}
+                    placement="bottomRight"
+                  >
+                    <MoreOutlined
+                      className="more-icon"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </Dropdown>
+                )}
               </li>
             ))}
           </ul>

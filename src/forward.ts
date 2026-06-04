@@ -237,8 +237,13 @@ class Forward {
   }
 }
 
-if (!window._forward) {
-  window._forward = new Forward();
+// MV3 service worker has no `window`; use `globalThis` (which is `self` in
+// service workers and `window` in pages) so that the singleton works in both
+// the background service worker and document contexts.
+const globalScope = globalThis as any;
+
+if (!globalScope._forward) {
+  globalScope._forward = new Forward();
 }
 
-export default window._forward;
+export default globalScope._forward as Forward;
