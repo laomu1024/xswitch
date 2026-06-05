@@ -23,6 +23,7 @@ import {
 } from './enums';
 import forward from './forward';
 import { ChromeStorageManager } from './chrome-storage';
+import { convertCaptureGroupSyntax } from './dnr-utils';
 
 const csmInstance = new ChromeStorageManager({
   useChromeStorageSyncFn: USE_CHROME_STORAGE_SYNC_FN,
@@ -116,16 +117,18 @@ csmInstance.get(
 /**
  * 生成 DNR 重定向规则
  */
-function generateRedirectRules(proxyRules: string[][], ruleIdStart = 1) {
+export function generateRedirectRules(proxyRules: string[][], ruleIdStart = 1) {
   const rules = [];
   let id = ruleIdStart;
   for (const [from, to] of proxyRules) {
+    // DNR regexSubstitution uses \1, \2 syntax instead of JS $1, $2
+    const dnrTo = convertCaptureGroupSyntax(to);
     rules.push({
       id: id++,
       priority: 1,
       action: {
         type: "redirect",
-        redirect: { regexSubstitution: to }
+        redirect: { regexSubstitution: dnrTo }
       },
       condition: {
         regexFilter: from,
