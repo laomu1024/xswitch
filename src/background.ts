@@ -169,20 +169,30 @@ function generateCORSRules(corsRules: string[], ruleIdStart = 10000) {
 
 /**
  * 更新 DNR 动态规则
+ *
+ * 注意：必须先通过 getDynamicRules() 查询当前实际存在的规则 ID，再针对性地移除。
+ * 早期实现会一次性传入 1~19999 全量 ID 作为 removeRuleIds，数组过大会导致
+ * updateDynamicRules 调用静默失败（且无异常被捕获），出现"开关已关闭但旧的转发规则
+ * 仍然生效"的问题。
  */
 async function updateDNRRules(proxyRules: string[][], corsRules: string[]) {
-  // 先移除所有动态规则
-  const allIds = [];
-  for (let i = 1; i < 10000; i++) allIds.push(i);
-  for (let i = 10000; i < 20000; i++) allIds.push(i);
+  try {
+    const existing = await dnr.getDynamicRules();
+    const removeRuleIds: number[] = Array.isArray(existing)
+      ? existing.map((rule: any) => rule.id)
+      : [];
 
-  await dnr.updateDynamicRules({
-    removeRuleIds: allIds,
-    addRules: [
-      ...generateRedirectRules(proxyRules, 1),
-      ...generateCORSRules(corsRules, 10000)
-    ]
-  });
+    await dnr.updateDynamicRules({
+      removeRuleIds,
+      addRules: [
+        ...generateRedirectRules(proxyRules, 1),
+        ...generateCORSRules(corsRules, 10000),
+      ],
+    });
+  } catch (err) {
+    // 主动暴露 DNR 更新失败信息，避免静默失败导致开关状态与实际规则不一致
+    console.error('[XSwitch] updateDynamicRules failed:', err);
+  }
 }
 
 /**
