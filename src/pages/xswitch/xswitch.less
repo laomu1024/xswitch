@@ -170,49 +170,8 @@ body {
   }
 
   .xswitch-toggle.ant-switch {
-    min-width: 48px;
-    height: 24px;
-    line-height: 22px;
-    background-color: #d9d9d9;
-    border: none;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
-
-    &::after {
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);
-      transition: transform 0.2s ease, width 0.2s ease, left 0.2s ease;
-    }
-
-    &:not(.ant-switch-checked):hover:not(.ant-switch-disabled) {
-      background-color: #bfbfbf;
-    }
-
-    &.ant-switch-checked {
-      background-color: #1890ff;
-      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
-
-      &::after {
-        left: calc(100% - 2px);
-        transform: translateX(-100%);
-      }
-
-      &:hover:not(.ant-switch-disabled) {
-        background-color: #40a9ff;
-      }
-    }
-
-    &:focus {
-      outline: none;
-      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
-    }
-
-    &:active:not(.ant-switch-disabled)::after {
-      width: 22px;
-    }
+    // 使用 antd v6 Switch 默认样式，不再覆盖滑块的伪元素
+    // （antd v5+ 滑块使用 .ant-switch-handle 元素，旧版 ::after 写法已失效）
   }
 }
 

@@ -2,7 +2,7 @@
   "name": "XSwitch-v3",
   "description": "A tool for redirecting URLs and allowing CORS to make the local development experience easy and happy.",
   "short_name": "xs",
-  "version": "3.0.0",
+  "version": "2.0.0",
   "manifest_version": 3,
   "action": {
     "default_icon": "images/grey_128.png",

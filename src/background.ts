@@ -197,10 +197,13 @@ function refreshRulesFromStorage() {
       },
     },
     [ACTIVE_KEYS]: ['0'],
+    [DISABLED]: Enabled.YES,
   }, (result: any) => {
     let proxyRules: string[][] = [];
     let corsRules: string[] = [];
-    if (result && result[JSON_CONFIG]) {
+    // 当扩展被关闭时，清空所有 DNR 规则，确保转发不再生效
+    const enabled = result[DISABLED] !== Enabled.NO;
+    if (enabled && result && result[JSON_CONFIG]) {
       const config = getActiveConfig(result[JSON_CONFIG]);
       proxyRules = config[PROXY_STORAGE_KEY] || [];
       corsRules = config[CORS_STORAGE] || [];
