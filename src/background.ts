@@ -51,28 +51,80 @@ interface StorageJSON {
   [key: string]: any;
 }
 
-csmInstance.get({
-  [JSON_CONFIG]: {
-    0: {
-      [PROXY_STORAGE_KEY]: [],
-      [CORS_STORAGE]: [],
-    },
-  },
-  [ACTIVE_KEYS]: ['0'],
-}, (result: any) => {
-  jsonActiveKeys = result[ACTIVE_KEYS];
-  if (result && result[JSON_CONFIG]) {
-    conf = result[JSON_CONFIG];
-    const config = getActiveConfig(conf);
-    forward[JSON_CONFIG] = { ...config };
-  } else {
-    forward[JSON_CONFIG] = {
-      [PROXY_STORAGE_KEY]: [],
-      [CORS_STORAGE]: [],
-    };
-    parseError = false;
+// 注意：由于 MV3 Service Worker 可能在 async 回调执行前被终止，
+// 我们立即调用一次 syncUpdateIcon() 设置默认状态，
+// 然后立即调用 restoreExtensionState() 从 storage 读取真实状态并纠正图标。
+syncUpdateIcon();
+restoreExtensionState();
+
+/**
+ * 同步更新图标和徽章（仅依赖当前内存中的 forward 对象状态）
+ */
+function syncUpdateIcon() {
+  // setChecked(true) 存入 DISABLED = Enabled.YES，表示扩展启用
+  // setChecked(false) 存入 DISABLED = Enabled.NO，表示扩展禁用
+  // 因此：DISABLED !== Enabled.NO 即为启用状态
+  const enabled = forward[DISABLED] !== Enabled.NO;
+  const action = (chrome as any).action || (chrome as any).browserAction;
+  if (!action) {
+    return;
   }
-});
+  // 设置图标文件
+  action.setIcon({ path: enabled ? BLUE_ICON_PATH : GREY_ICON_PATH });
+  // 设置徽章
+  if (parseError) {
+    action.setBadgeText({ text: '!' });
+    action.setBadgeBackgroundColor({ color: '#f5222d' });
+  } else if (!enabled) {
+    action.setBadgeText({ text: 'OFF' });
+    action.setBadgeBackgroundColor({ color: '#bfbfbf' });
+  } else {
+    const proxyLength = forward[JSON_CONFIG]?.[PROXY_STORAGE_KEY]?.length || 0;
+    action.setBadgeText({ text: String(proxyLength) });
+    action.setBadgeBackgroundColor({ color: '#1890ff' });
+  }
+}
+
+/**
+ * 从 storage 恢复扩展完整状态（配置、启用状态、图标、徽章）
+ * 合并为单一读取操作，避免多个异步回调之间的竞态条件
+ */
+function restoreExtensionState() {
+  csmInstance.get({
+    [JSON_CONFIG]: {
+      0: {
+        [PROXY_STORAGE_KEY]: [],
+        [CORS_STORAGE]: [],
+      },
+    },
+    [ACTIVE_KEYS]: ['0'],
+    [DISABLED]: Enabled.YES,
+    [CLEAR_CACHE_ENABLED]: Enabled.YES,
+    [CORS_ENABLED_STORAGE_KEY]: Enabled.YES,
+  }, (result: any) => {
+    // 恢复配置
+    jsonActiveKeys = result[ACTIVE_KEYS];
+    if (result && result[JSON_CONFIG]) {
+      conf = result[JSON_CONFIG];
+      const config = getActiveConfig(conf);
+      forward[JSON_CONFIG] = { ...config };
+    } else {
+      forward[JSON_CONFIG] = {
+        [PROXY_STORAGE_KEY]: [],
+        [CORS_STORAGE]: [],
+      };
+      parseError = false;
+    }
+
+    // 恢复启用/禁用状态
+    forward[DISABLED] = result[DISABLED];
+    clearCacheEnabled = result[CLEAR_CACHE_ENABLED] === Enabled.YES;
+    corsEnabled = result[CORS_ENABLED_STORAGE_KEY] === Enabled.YES;
+
+    // 状态和配置都已就绪，同步更新图标和徽章
+    syncUpdateIcon();
+  });
+}
 
 // 使用类型断言，避免TS报错
 const dnr: any = (chrome as any).declarativeNetRequest;
@@ -100,19 +152,11 @@ function getActiveConfig(config: StorageJSON): any {
   return json;
 }
 
-csmInstance.get(
-  {
-    [DISABLED]: Enabled.YES,
-    [CLEAR_CACHE_ENABLED]: Enabled.YES,
-    [CORS_ENABLED_STORAGE_KEY]: Enabled.YES,
-  },
-  (result: any) => {
-    forward[DISABLED] = result[DISABLED];
-    clearCacheEnabled = result[CLEAR_CACHE_ENABLED] === Enabled.YES;
-    corsEnabled = result[CORS_ENABLED_STORAGE_KEY] === Enabled.YES;
-    setIcon();
-  }
-);
+// 浏览器启动时恢复扩展状态，确保重启后图标和徽章正确展示
+chrome.runtime.onStartup.addListener(() => {
+  restoreExtensionState();
+  refreshRulesFromStorage();
+});
 
 /**
  * 生成 DNR 重定向规则
@@ -212,6 +256,7 @@ function refreshRulesFromStorage() {
     let proxyRules: string[][] = [];
     let corsRules: string[] = [];
     // 当扩展被关闭时，清空所有 DNR 规则，确保转发不再生效
+    // setChecked(true) 存入 Enabled.YES = 启用，setChecked(false) 存入 Enabled.NO = 禁用
     const enabled = result[DISABLED] !== Enabled.NO;
     if (enabled && result && result[JSON_CONFIG]) {
       const config = getActiveConfig(result[JSON_CONFIG]);
@@ -244,6 +289,9 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes[CORS_ENABLED_STORAGE_KEY]) {
     corsEnabled = changes[CORS_ENABLED_STORAGE_KEY].newValue === Enabled.YES;
   }
+  // 同步更新图标（此时 forward[DISABLED] 已从 changes 中更新）
+  syncUpdateIcon();
+  // 异步更新配置（不影响图标，只更新 forward[JSON_CONFIG]）
   csmInstance.get({
     [JSON_CONFIG]: {
       0: {
@@ -257,9 +305,7 @@ chrome.storage.onChanged.addListener((changes) => {
       const config = getActiveConfig(conf);
       forward[JSON_CONFIG] = { ...config };
     }
-    setIcon();
   });
-  checkAndChangeIcons();
 });
 
 function setBadgeAndBackgroundColor(
@@ -281,20 +327,8 @@ function setBadgeAndBackgroundColor(
 }
 
 function setIcon(): void {
-  if (parseError) {
-    setBadgeAndBackgroundColor(BadgeText.ERROR, IconBackgroundColor.ERROR);
-    return;
-  }
-
-  if (forward[DISABLED] !== Enabled.NO) {
-    setBadgeAndBackgroundColor(
-      forward[JSON_CONFIG][PROXY_STORAGE_KEY].length,
-      IconBackgroundColor.ON
-    );
-  } else {
-    setBadgeAndBackgroundColor(BadgeText.OFF, IconBackgroundColor.OFF);
-    return;
-  }
+  // setIcon 保留为向后兼容的封装，内部委托给 syncUpdateIcon
+  syncUpdateIcon();
 }
 
 function headersReceivedListener(
@@ -319,18 +353,9 @@ function clearCache(): void {
 }
 
 function checkAndChangeIcons() {
-  // MV3 service worker has no `window`/`matchMedia`, so the original
-  // dark-mode based icon switching cannot run here. Fall back to
-  // toggling the icon according to the enabled state of the extension:
-  // blue when active, grey when disabled.
-  const action =
-    (chrome as any).action || (chrome as any).browserAction;
-  if (!action) {
-    return;
-  }
-  const enabled = forward[DISABLED] !== Enabled.NO;
-  action.setIcon({ path: enabled ? BLUE_ICON_PATH : GREY_ICON_PATH });
+  // 委托给 syncUpdateIcon 统一处理图标和徽章
+  syncUpdateIcon();
 }
 
-// check when extension is loaded
-checkAndChangeIcons();
+// 注意：图标和徽章的同步更新已在顶部顶层代码中通过 syncUpdateIcon() 完成，
+// restoreExtensionState() 的 async 回调中会再次同步更新，确保最终状态正确。
