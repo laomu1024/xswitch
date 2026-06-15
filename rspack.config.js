@@ -108,7 +108,6 @@ const devConfig = {
     historyApiFallback: {
       rewrites: [
         { from: /^\/XSwitch\.html$/, to: '/index.html' },
-        { from: /^\/options\.html$/, to: '/options.html' },
       ],
     },
   },
@@ -121,7 +120,6 @@ const prodConfig = {
   entry: {
     background: path.resolve(__dirname, 'src/background.ts'),
     xswitch: path.resolve(__dirname, 'src/pages/xswitch/main.tsx'),
-    options: path.resolve(__dirname, 'src/pages/options/main.tsx'),
   },
   output: {
     path: path.resolve(__dirname, 'build'),

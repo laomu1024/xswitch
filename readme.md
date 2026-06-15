@@ -82,6 +82,24 @@
 
 [MIT](https://opensource.org/licenses/MIT) © [yize.shc](https://www.yuque.com/jiushen)
 
+## 更新记录
+
+### v2.2.0 (2026-06-12)
+
+- ✨ 新增 **配置导出** 功能：可将全部规则一键导出为 JSON 文件，便于备份与团队共享。
+- ✨ 新增 **配置导入** 功能：选择 JSON 文件即可导入；当存在重名规则时，弹窗让用户在 **覆盖导入 / 重命名导入 / 取消** 之间选择，重命名模式下会在原名称后追加时间戳后缀（如 `MyRule_20260612-180530`）。
+- 🎨 **工具栏整合**：将"导出配置 / 导入配置 / 帮助文档"统一收纳到右上角的「更多」菜单（`⋯` 图标），支持 hover 与点击两种触发方式，工具栏更简洁。
+
+### v2.1.0
+
+- 🐛 修复 **启用 / 禁用状态更新不及时** 的问题，开关切换后图标状态与 DNR 规则联动更准确。
+
+### v2.0.0
+
+- ✨ 新增规则项 **重命名** 功能（hover 三点菜单触发）。
+- ✨ 新增规则项 **拖动排序** 功能，可自由调整规则执行顺序；"Current" 项固定置顶。
+
+
 [link-xswitch]: https://github.com/yize/xswitch
 [link-cws]: https://chrome.google.com/webstore/detail/xswitch/idkjhjggpffolpidfkikidcokdkdaogg
 [link-me]: https://github.com/Microsoft/monaco-editor

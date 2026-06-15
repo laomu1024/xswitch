@@ -355,6 +355,214 @@ export function openLink(url: string, isInner: boolean = false): void {
 
 
 
+interface ExportConfigItem {
+  name: string;
+  active: boolean;
+  jsonc: string;
+}
+
+export interface ExportConfigData {
+  version: number;
+  exportedAt: string;
+  items: ExportConfigItem[];
+}
+
+/**
+ * 导出全部配置项（TAB_LIST + 对应的 JSONC 内容）
+ */
+export function exportAllConfigs(): Promise<ExportConfigData> {
+  return new Promise((resolve) => {
+    csmInstance.get(
+      {
+        [JSONC_CONFIG]: {},
+        [TAB_LIST]: [
+          {
+            id: '0',
+            name: 'Current',
+            active: true,
+          },
+        ],
+      },
+      (result: any) => {
+        const tabs: Array<{ id: string; name: string; active: boolean }> =
+          result[TAB_LIST] || [];
+        const jsoncMap: any =
+          typeof result[JSONC_CONFIG] === 'string' ? {} : result[JSONC_CONFIG] || {};
+
+        const items: ExportConfigItem[] = tabs.map((tab) => ({
+          name: tab.name,
+          active: !!tab.active,
+          jsonc: typeof jsoncMap[tab.id] === 'string' ? jsoncMap[tab.id] : '',
+        }));
+
+        resolve({
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          items,
+        });
+      }
+    );
+  });
+}
+
+/**
+ * 检测导入数据中与现有配置重名的项，返回冲突的名称列表。
+ */
+export function detectImportConflicts(
+  data: ExportConfigData
+): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    if (!data || !Array.isArray(data.items)) {
+      reject(new Error('Invalid config file format'));
+      return;
+    }
+    csmInstance.get(
+      {
+        [TAB_LIST]: [
+          {
+            id: '0',
+            name: 'Current',
+            active: true,
+          },
+        ],
+      },
+      (result: any) => {
+        const tabs: Array<{ id: string; name: string }> = Array.isArray(
+          result[TAB_LIST]
+        )
+          ? result[TAB_LIST]
+          : [];
+        const existNames = new Set(tabs.map((t) => t.name));
+        const conflicts: string[] = [];
+        data.items.forEach((it) => {
+          if (it && typeof it.name === 'string' && existNames.has(it.name)) {
+            conflicts.push(it.name);
+          }
+        });
+        resolve(conflicts);
+      }
+    );
+  });
+}
+
+function buildTimestampSuffix(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(
+    d.getHours()
+  )}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+/**
+ * 导入配置：根据 mode 处理重名项。
+ * - overwrite: 同名覆盖 JSONC 与 active 状态（默认）
+ * - rename:    同名项名称追加时间戳后追加为新项
+ * 返回导入后最新的 TAB_LIST，供 UI 刷新使用。
+ */
+export function importConfigs(
+  data: ExportConfigData,
+  mode: 'overwrite' | 'rename' = 'overwrite'
+): Promise<{ items: Array<{ id: string; name: string; active: boolean }>; updated: number; added: number; renamed: number }> {
+  return new Promise((resolve, reject) => {
+    if (!data || !Array.isArray(data.items)) {
+      reject(new Error('Invalid config file format'));
+      return;
+    }
+
+    csmInstance.get(
+      {
+        [JSONC_CONFIG]: {},
+        [JSON_CONFIG]: {},
+        [TAB_LIST]: [
+          {
+            id: '0',
+            name: 'Current',
+            active: true,
+          },
+        ],
+      },
+      (result: any) => {
+        const tabs: Array<{ id: string; name: string; active: boolean }> = Array.isArray(
+          result[TAB_LIST]
+        )
+          ? result[TAB_LIST].slice()
+          : [];
+        const jsoncMap: any =
+          typeof result[JSONC_CONFIG] === 'string' || !result[JSONC_CONFIG]
+            ? {}
+            : { ...result[JSONC_CONFIG] };
+        const jsonMap: any =
+          typeof result[JSON_CONFIG] === 'string' || !result[JSON_CONFIG]
+            ? {}
+            : { ...result[JSON_CONFIG] };
+
+        let updated = 0;
+        let added = 0;
+        let renamed = 0;
+        const suffix = buildTimestampSuffix();
+
+        data.items.forEach((incoming, idx) => {
+          if (!incoming || typeof incoming.name !== 'string') {
+            return;
+          }
+          const jsonc = typeof incoming.jsonc === 'string' ? incoming.jsonc : '';
+          const exist = tabs.find((t) => t.name === incoming.name);
+          let targetId: string;
+
+          if (exist && mode === 'overwrite') {
+            // 覆盖现有项
+            targetId = exist.id;
+            exist.active = !!incoming.active;
+            updated += 1;
+          } else {
+            // 未重名 或 重命名模式下重命名后追加
+            let finalName = incoming.name;
+            if (exist && mode === 'rename') {
+              let candidate = `${incoming.name}_${suffix}`;
+              let i = 1;
+              const usedNames = new Set(tabs.map((t) => t.name));
+              while (usedNames.has(candidate)) {
+                candidate = `${incoming.name}_${suffix}_${i++}`;
+              }
+              finalName = candidate;
+              renamed += 1;
+            }
+            targetId = String(Date.now()) + '_' + idx;
+            tabs.push({
+              id: targetId,
+              name: finalName,
+              active: !!incoming.active,
+            });
+            added += 1;
+          }
+          jsoncMap[targetId] = jsonc;
+          // 同步解析为 JSON
+          const json = JSONC2JSON(jsonc);
+          JSON_Parse(json, (error, parsedJSON) => {
+            jsonMap[targetId] = error ? '' : parsedJSON;
+          });
+        });
+
+        const activeKeys = tabs
+          .filter((t) => t.active)
+          .map((t) => t.id);
+
+        csmInstance.set(
+          {
+            [TAB_LIST]: tabs,
+            [ACTIVE_KEYS]: activeKeys,
+            [JSONC_CONFIG]: jsoncMap,
+            [JSON_CONFIG]: jsonMap,
+          },
+          () => {
+            resolve({ items: tabs, updated, added, renamed });
+          }
+        );
+      }
+    );
+  });
+}
+
 export function removeUnusedItems(){
   csmInstance.get({
     [JSONC_CONFIG]: {},

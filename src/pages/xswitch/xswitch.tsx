@@ -1,12 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Switch, Checkbox, Input, Dropdown, Modal, message } from 'antd';
+import { Switch, Checkbox, Input, Dropdown, Modal, Button, message } from 'antd';
 import type { InputRef } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   EditTwoTone,
-  QuestionCircleTwoTone,
+  QuestionCircleOutlined,
   CodeTwoTone,
   MoreOutlined,
+  ExportOutlined,
+  ImportOutlined,
+  EllipsisOutlined,
+  CheckOutlined,
 } from '@ant-design/icons';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 
@@ -39,7 +43,13 @@ import {
   setConfigItems,
   getConfigItems,
   removeUnusedItems,
+  exportAllConfigs,
+  importConfigs,
+  detectImportConflicts,
+  getOptions,
+  setOptions,
 } from '../../chrome-storage';
+import type { ExportConfigData } from '../../chrome-storage';
 import { getEditorConfig } from '../../editor-config';
 
 interface ConfigItem {
@@ -52,6 +62,8 @@ let editor: any;
 
 export default function XSwitch() {
   const [checked, setChecked] = useState(true);
+  const [clearCacheEnabled, setClearCacheEnabled] = useState(true);
+  const [corsEnabled, setCorsEnabled] = useState(true);
   const [editingKey, setEditingKey] = useState('0');
   const [draggingKey, setDraggingKey] = useState('');
   const [dragoverKey, setDragoverKey] = useState('');
@@ -66,6 +78,11 @@ export default function XSwitch() {
 
   const tabsRef = useRef<HTMLUListElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importPending, setImportPending] = useState<{
+    data: ExportConfigData;
+    conflicts: string[];
+  } | null>(null);
   const editingKeyRef = useRef(editingKey);
   editingKeyRef.current = editingKey;
 
@@ -88,8 +105,11 @@ export default function XSwitch() {
 
     (async () => {
       const enabled = (await getChecked()) !== Enabled.NO;
+      const opts = await getOptions();
       if (!cancelled) {
         setChecked(enabled);
+        setClearCacheEnabled(opts.clearCacheEnabled !== Enabled.NO);
+        setCorsEnabled(opts.corsEnabled !== Enabled.NO);
       }
     })();
 
@@ -97,6 +117,18 @@ export default function XSwitch() {
       cancelled = true;
     };
   }, []);
+
+  const toggleClearCache = () => {
+    const next = !clearCacheEnabled;
+    setClearCacheEnabled(next);
+    setOptions({ clearCacheEnabled: next, corsEnabled });
+  };
+
+  const toggleCors = () => {
+    const next = !corsEnabled;
+    setCorsEnabled(next);
+    setOptions({ clearCacheEnabled, corsEnabled: next });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +230,94 @@ export default function XSwitch() {
 
   const openReadme = () => {
     openLink(HELP_URL);
+  };
+
+  const handleExport = async () => {
+    try {
+      const data = await exportAllConfigs();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date()
+        .toISOString()
+        .replace(/[:.]/g, '-')
+        .replace('T', '_')
+        .replace('Z', '');
+      a.href = url;
+      a.download = `xswitch-config-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      message.success(`Exported ${data.items.length} rule(s).`);
+    } catch (e: any) {
+      message.error(`Export failed: ${e?.message || e}`);
+    }
+  };
+
+  const triggerImport = () => {
+    importInputRef.current?.click();
+  };
+
+  const performImport = async (
+    data: ExportConfigData,
+    mode: 'overwrite' | 'rename'
+  ) => {
+    try {
+      const { items: nextItems, updated, added, renamed } = await importConfigs(
+        data,
+        mode
+      );
+      setItems(Array.from(nextItems as ConfigItem[]));
+      // 刷新当前编辑项内容
+      const currentKey = editingKeyRef.current;
+      const config = await getConfig(currentKey);
+      setEditorValue((config as string) || DEFAULT_DUP_DATA);
+      const parts: string[] = [];
+      if (added) parts.push(`${added} added`);
+      if (updated) parts.push(`${updated} overwritten`);
+      if (renamed) parts.push(`${renamed} renamed`);
+      message.success(`Imported: ${parts.join(', ') || 'no change'}.`);
+    } catch (err: any) {
+      message.error(`Import failed: ${err?.message || err}`);
+    }
+  };
+
+  const handleImportFile = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    // 重置 value，以便同名文件可重复选择
+    e.target.value = '';
+    if (!file) {
+      return;
+    }
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text) as ExportConfigData;
+      if (!data || !Array.isArray(data.items)) {
+        message.error('Invalid config file format.');
+        return;
+      }
+      const conflicts = await detectImportConflicts(data);
+      if (conflicts.length === 0) {
+        await performImport(data, 'overwrite');
+      } else {
+        // 弹窗让用户决定如何处理重名
+        setImportPending({ data, conflicts });
+      }
+    } catch (err: any) {
+      message.error(`Import failed: ${err?.message || err}`);
+    }
+  };
+
+  const handleConflictChoice = async (mode: 'overwrite' | 'rename') => {
+    if (!importPending) return;
+    const { data } = importPending;
+    setImportPending(null);
+    await performImport(data, mode);
   };
 
   const dragStart = (ev: React.DragEvent<HTMLLIElement>) => {
@@ -488,17 +608,6 @@ export default function XSwitch() {
           title={checked ? 'Disable proxy' : 'Enable proxy'}
         />
         <a
-          className="open-readme"
-          title="Open help page"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            openReadme();
-          }}
-        >
-          <QuestionCircleTwoTone style={{ fontSize: 22 }} />
-        </a>
-        <a
           className="new-tab-control"
           title="Open in new tab"
           href="#"
@@ -509,7 +618,119 @@ export default function XSwitch() {
         >
           <CodeTwoTone style={{ fontSize: 22 }} />
         </a>
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'clearCache',
+                icon: clearCacheEnabled ? (
+                  <CheckOutlined />
+                ) : (
+                  <span style={{ display: 'inline-block', width: 14 }} />
+                ),
+                label: 'Enable Clear Cache',
+                onClick: ({ domEvent }) => {
+                  domEvent.preventDefault();
+                  toggleClearCache();
+                },
+              },
+              {
+                key: 'cors',
+                icon: corsEnabled ? (
+                  <CheckOutlined />
+                ) : (
+                  <span style={{ display: 'inline-block', width: 14 }} />
+                ),
+                label: 'Enable CORS',
+                onClick: ({ domEvent }) => {
+                  domEvent.preventDefault();
+                  toggleCors();
+                },
+              },
+              { type: 'divider' as const },
+              {
+                key: 'export',
+                icon: <ExportOutlined />,
+                label: 'Export config',
+                onClick: () => handleExport(),
+              },
+              {
+                key: 'import',
+                icon: <ImportOutlined />,
+                label: 'Import config',
+                onClick: () => triggerImport(),
+              },
+              { type: 'divider' as const },
+              {
+                key: 'help',
+                icon: <QuestionCircleOutlined />,
+                label: 'Help / Docs',
+                onClick: () => openReadme(),
+              },
+            ],
+          }}
+          trigger={['hover', 'click']}
+          placement="bottomRight"
+        >
+          <a
+            className="toolbar-action toolbar-more"
+            title="More actions"
+            href="#"
+            onClick={(e) => e.preventDefault()}
+          >
+            <EllipsisOutlined style={{ fontSize: 22 }} />
+          </a>
+        </Dropdown>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          onChange={handleImportFile}
+        />
       </div>
+      <Modal
+        open={!!importPending}
+        title="Duplicate names detected"
+        onCancel={() => setImportPending(null)}
+        maskClosable={false}
+        footer={[
+          <Button key="cancel" onClick={() => setImportPending(null)}>
+            Cancel
+          </Button>,
+          <Button
+            key="rename"
+            onClick={() => handleConflictChoice('rename')}
+          >
+            Rename & Import
+          </Button>,
+          <Button
+            key="overwrite"
+            type="primary"
+            danger
+            onClick={() => handleConflictChoice('overwrite')}
+          >
+            Overwrite
+          </Button>,
+        ]}
+      >
+        <p>
+          The following {importPending?.conflicts.length || 0} name(s) already
+          exist:
+        </p>
+        <ul style={{ maxHeight: 200, overflow: 'auto', paddingLeft: 20 }}>
+          {importPending?.conflicts.map((name) => (
+            <li key={name}>{name}</li>
+          ))}
+        </ul>
+        <p style={{ marginTop: 12 }}>
+          <strong>Overwrite</strong>: replace existing rules with imported
+          content.
+          <br />
+          <strong>Rename &amp; Import</strong>: append a timestamp suffix to
+          duplicates and add as new rules.
+        </p>
+      </Modal>
     </>
   );
 }

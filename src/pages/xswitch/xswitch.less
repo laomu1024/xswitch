@@ -152,7 +152,7 @@ body {
 }
 
 .toolbar-area {
-  width: 120px;
+  width: 130px;
   position: fixed;
   right: 20px;
   top: 13px;
@@ -167,6 +167,23 @@ body {
     cursor: pointer;
     display: inline-flex;
     align-items: center;
+  }
+
+  .toolbar-action {
+    color: #595959;
+    opacity: 0.7;
+    &:hover {
+      opacity: 1;
+      color: #1890ff;
+    }
+  }
+
+  .toolbar-more {
+    padding: 0 2px;
+    border-radius: 4px;
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
   }
 
   .xswitch-toggle.ant-switch {
