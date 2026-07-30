@@ -1,0 +1,201 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+::-webkit-scrollbar-thumb {
+  display: none;
+}
+
+.xswitch-wrapper {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  &::-webkit-scrollbar {
+    display: block;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    display: block;
+    background-color: rgba(0, 0, 0, 0.25);
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+  .xswitch-tabs {
+    padding: 0;
+    width: 200px;
+    white-space: nowrap;
+    overflow: auto;
+    margin-right: -1px;
+    z-index: 2;
+    margin-bottom: 0;
+    padding-bottom: 44px;
+    flex: 1;
+    li {
+      padding: 2px 10px;
+      line-height: 24px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      position: relative;
+      .delete-icon {
+        display: none;
+        opacity: 0;
+      }
+      .more-icon {
+        display: none;
+        opacity: 0;
+        font-size: 16px;
+        padding: 2px 4px;
+        border-radius: 3px;
+        cursor: pointer;
+        color: #595959;
+      }
+      .label {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .rename-input {
+        flex: 1;
+        margin-left: 4px;
+        height: 22px;
+      }
+      &:hover {
+        background: #efefef;
+        .delete-icon {
+          display: inline-block;
+          opacity: 0.5;
+          &:hover {
+            opacity: 1;
+          }
+        }
+        .more-icon {
+          display: inline-flex;
+          opacity: 0.6;
+          &:hover {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.06);
+          }
+        }
+      }
+      &:first-of-type {
+        border-top: 0;
+        .delete-icon {
+          display: none !important;
+        }
+        .more-icon {
+          display: none !important;
+        }
+      }
+      &.editing {
+        border-color: #bfbfbf #fff #bfbfbf transparent;
+      }
+      &.dragging {
+        opacity: 0.4;
+      }
+      &.dragover-top::before,
+      &.dragover-bottom::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background-color: #1890ff;
+        pointer-events: none;
+      }
+      &.dragover-top::before {
+        top: -1px;
+      }
+      &.dragover-bottom::after {
+        bottom: -1px;
+      }
+    }
+  }
+  .xswitch-new-item-container {
+    padding: 10px;
+    z-index: 3;
+    background: #fff;
+    width: calc(100% - 20px);
+    position: relative;
+    .confirm-button{
+      position: absolute;
+      right: 15px;
+      top: 15px;
+      cursor: pointer;
+    }
+  }
+}
+
+.xswitch-container {
+  width: 100%;
+  min-width: 600px;
+  min-height: 600px;
+  height: 100vh;
+}
+
+.xswitch-left-area{
+  display: flex;
+  align-items: baseline;
+  flex-direction: column;
+  min-height: 600px;
+  height: 100vh;
+  border-right: 1px solid #bfbfbf;
+}
+
+.toolbar-area {
+  width: 130px;
+  position: fixed;
+  right: 20px;
+  top: 13px;
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  gap: 4px;
+
+  a {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .toolbar-action {
+    color: #595959;
+    opacity: 0.7;
+    &:hover {
+      opacity: 1;
+      color: #1890ff;
+    }
+  }
+
+  .toolbar-more {
+    padding: 0 2px;
+    border-radius: 4px;
+    &:hover {
+      background: rgba(0, 0, 0, 0.05);
+    }
+  }
+
+  .xswitch-toggle.ant-switch {
+    // 使用 antd v6 Switch 默认样式，不再覆盖滑块的伪元素
+    // （antd v5+ 滑块使用 .ant-switch-handle 元素，旧版 ::after 写法已失效）
+  }
+}
+
+.xswitch-icon {
+  width: 22px;
+  opacity: 0.5;
+  &:hover {
+    opacity: 1;
+  }
+}

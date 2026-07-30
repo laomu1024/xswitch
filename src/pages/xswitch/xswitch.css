@@ -1,0 +1,315 @@
+/* XSwitch Popup - 原生 CSS（无 Antd 依赖） */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: #333;
+}
+
+::-webkit-scrollbar { display: none; }
+::-webkit-scrollbar-thumb { display: none; }
+
+/* ---- 主布局 ---- */
+.xswitch-wrapper {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.xswitch-wrapper::-webkit-scrollbar { display: block; height: 8px; }
+.xswitch-wrapper::-webkit-scrollbar-thumb { display: block; background-color: rgba(0,0,0,0.25); border-radius: 4px; }
+.xswitch-wrapper::-webkit-scrollbar-thumb:hover { background-color: rgba(0,0,0,0.4); }
+
+.xswitch-left-area {
+  display: flex;
+  align-items: baseline;
+  flex-direction: column;
+  min-height: 600px;
+  height: 100vh;
+  border-right: 1px solid #bfbfbf;
+}
+
+/* ---- 规则列表 ---- */
+.xswitch-tabs {
+  padding: 0;
+  width: 200px;
+  white-space: nowrap;
+  overflow: auto;
+  margin-right: -1px;
+  z-index: 2;
+  margin-bottom: 0;
+  padding-bottom: 44px;
+  flex: 1;
+  list-style: none;
+}
+.xswitch-tabs li {
+  padding: 2px 10px;
+  line-height: 24px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.xswitch-tabs li:hover { background: #efefef; }
+.xswitch-tabs li:first-of-type { border-top: 0; }
+.xswitch-tabs li:first-of-type .more-icon { display: none !important; }
+.xswitch-tabs li.editing { border-color: #bfbfbf #fff #bfbfbf transparent; }
+.xswitch-tabs li.dragging { opacity: 0.4; }
+.xswitch-tabs li.dragover-top::before,
+.xswitch-tabs li.dragover-bottom::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background-color: #1890ff;
+  pointer-events: none;
+}
+.xswitch-tabs li.dragover-top::before { top: -1px; }
+.xswitch-tabs li.dragover-bottom::after { bottom: -1px; }
+
+.xswitch-tabs .tab-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: #1890ff;
+}
+.xswitch-tabs .label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.xswitch-tabs .more-icon {
+  display: none;
+  opacity: 0;
+  font-size: 16px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #595959;
+}
+.xswitch-tabs li:hover .more-icon {
+  display: inline-flex;
+  opacity: 0.6;
+}
+.xswitch-tabs li:hover .more-icon:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.06);
+}
+.xswitch-tabs .rename-input {
+  flex: 1;
+  margin-left: 4px;
+  height: 22px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 13px;
+  outline: none;
+}
+.xswitch-tabs .rename-input:focus { border-color: #1890ff; }
+
+/* ---- 新增规则 ---- */
+.xswitch-new-item-container {
+  padding: 10px;
+  z-index: 3;
+  background: #fff;
+  width: calc(100% - 20px);
+  position: relative;
+}
+.xswitch-new-item-container .new-item {
+  width: 100%;
+  height: 26px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  padding: 0 28px 0 8px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+.xswitch-new-item-container .new-item:focus { border-color: #1890ff; }
+.xswitch-new-item-container .confirm-button {
+  position: absolute;
+  right: 15px;
+  top: 14px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #1890ff;
+  padding: 2px;
+}
+.xswitch-new-item-container .confirm-button:hover { color: #40a9ff; }
+
+/* ---- 编辑器区域 ---- */
+.xswitch-container {
+  width: 100%;
+  min-width: 600px;
+  min-height: 600px;
+  height: 100vh;
+}
+.editor-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  font-size: 14px;
+}
+
+/* ---- 工具栏 ---- */
+.toolbar-area {
+  width: 130px;
+  position: fixed;
+  right: 20px;
+  top: 13px;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  gap: 4px;
+}
+.toolbar-area a {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.toolbar-action {
+  color: #595959;
+  opacity: 0.7;
+  font-size: 18px;
+  font-weight: bold;
+}
+.toolbar-action:hover { opacity: 1; color: #1890ff; }
+.toolbar-more {
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 20px;
+}
+.toolbar-more:hover { background: rgba(0,0,0,0.05); }
+.toolbar-newtab {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+/* ---- 自定义 Switch ---- */
+.xs-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  border: none;
+  background: #bfbfbf;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+  outline: none;
+}
+.xs-switch.xs-switch-checked { background: #1890ff; }
+.xs-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.xs-switch.xs-switch-checked .xs-switch-knob { left: 21px; }
+
+/* ---- 下拉菜单 ---- */
+.xs-dropdown-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  padding: 4px 0;
+  min-width: 140px;
+}
+.xs-dropdown-right { right: 20px; }
+.xs-menu-item {
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.xs-menu-item:hover { background: #f5f5f5; }
+.xs-menu-danger { color: #ff4d4f; }
+.xs-menu-danger:hover { background: #fff1f0; }
+.xs-menu-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 4px 0;
+}
+
+/* ---- Modal ---- */
+.xs-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.xs-modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+.xs-modal h3 { margin: 0 0 12px; font-size: 16px; }
+.xs-modal p { margin: 8px 0; font-size: 13px; color: #555; }
+.xs-conflict-list {
+  max-height: 150px;
+  overflow: auto;
+  padding-left: 20px;
+  margin: 8px 0;
+}
+.xs-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+.xs-btn {
+  padding: 5px 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+.xs-btn:hover { border-color: #1890ff; color: #1890ff; }
+.xs-btn-danger { background: #ff4d4f; color: #fff; border-color: #ff4d4f; }
+.xs-btn-danger:hover { background: #ff7875; border-color: #ff7875; color: #fff; }
+
+/* ---- Toast ---- */
+.xs-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-10px);
+  background: #fff;
+  border-radius: 6px;
+  padding: 8px 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-size: 13px;
+  z-index: 3000;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+.xs-toast-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+.xs-toast-error { color: #ff4d4f; }
+
+/* ---- 隐藏文件输入 ---- */
+.import-file-input { display: none; }

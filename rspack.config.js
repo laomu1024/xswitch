@@ -119,7 +119,7 @@ const prodConfig = {
   mode: 'production',
   entry: {
     background: path.resolve(__dirname, 'src/background.ts'),
-    xswitch: path.resolve(__dirname, 'src/pages/xswitch/main.tsx'),
+    xswitch: path.resolve(__dirname, 'src/pages/xswitch/main.ts'),
   },
   output: {
     path: path.resolve(__dirname, 'build'),

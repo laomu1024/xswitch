@@ -11,6 +11,8 @@
     "dev": "RSPACK_DEV=1 rspack serve -c rspack.config.js --port 8088",
     "pub": "npm run build && npm t && sh pub.sh",
     "test": "jest",
+    "test:e2e": "playwright test",
+    "test:e2e:coverage": "playwright test && echo '\nCoverage report: coverage/e2e-coverage.json'",
     "ci": "jest --coverage && cat ./coverage/lcov.info | coveralls"
   },
   "keywords": [
@@ -31,6 +33,7 @@
     "@ali/nowa-recore-solution": "1.7.0",
     "@ali/recore-loader": "^1.0.0",
     "@nowa/cli": "^0.6.0",
+    "@playwright/test": "^1.62.0",
     "@rspack/cli": "^2.0.3",
     "@rspack/core": "^2.0.3",
     "@rspack/dev-server": "^2.0.1",
