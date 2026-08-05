@@ -7,7 +7,7 @@
     "url": "git@github.com:yize/xswitch.git"
   },
   "scripts": {
-    "build": "rspack build -c rspack.config.js && cp -rf images lib XSwitch.html manifest.json build",
+    "build": "rspack build -c rspack.config.js && cp -rf images XSwitch.html manifest.json build && mkdir -p build/lib && cp -rf lib/monaco-editor build/lib/",
     "dev": "RSPACK_DEV=1 rspack serve -c rspack.config.js --port 8088",
     "pub": "npm run build && npm t && sh pub.sh",
     "test": "jest",
