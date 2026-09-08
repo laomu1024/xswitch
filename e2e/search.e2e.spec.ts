@@ -108,3 +108,39 @@ test('first filtered result keeps its menu and hover does not shift text', async
   expect(await row.boundingBox()).toEqual(beforeRow);
   expect(await label.boundingBox()).toEqual(beforeLabel);
 });
+
+test('pin menu follows Delete, persists display order and preserves active rules', async ({ page }) => {
+  const before = await readState(page);
+  const pin = async (id: string, label: string) => {
+    const row = page.locator(`.xswitch-tabs li[id="${id}"]`);
+    await row.hover();
+    await row.locator('.more-icon').click();
+    await expect(page.locator('.xs-dropdown-menu .xs-menu-item')).toHaveText(['Rename', 'Delete', label]);
+    await page.locator('.xs-menu-item').filter({ hasText: new RegExp(`^${label}$`) }).click();
+  };
+  await pin('2', 'Pin to top');
+  await expect(page.locator('.xswitch-tabs li').nth(1)).toHaveAttribute('id', '2');
+  await expect(page.locator('.xswitch-tabs li[id="2"] .pin-icon')).toBeVisible();
+  await pin('3', 'Pin to top');
+  await expect(page.locator('.xswitch-tabs li').nth(1)).toHaveAttribute('id', '3');
+
+  const stored = await readState(page);
+  expect(stored.tab_list.map((item: any) => item.id)).toEqual(before.tab_list.map((item: any) => item.id));
+  expect(stored.active_keys).toEqual(before.active_keys);
+  expect(stored.config_editing_key).toBe(before.config_editing_key);
+  expect(stored.config).toEqual(before.config);
+
+  // Recreate the popup DOM while keeping the simulated extension storage.
+  await page.setContent('<div id="root"></div>');
+  await page.addStyleTag({ path: path.resolve(__dirname, '../build/xswitch.css') });
+  await page.addScriptTag({ path: path.resolve(__dirname, '../build/xswitch.js') });
+  await expect(page.locator('.xswitch-tabs .label')).toHaveText([
+    '\u00a0Current', '\u00a0Alpha CDN', '\u00a0Beta', '\u00a0Alpha API',
+  ]);
+  await pin('2', 'Unpin');
+  await expect(page.locator('.xswitch-tabs .label')).toHaveText([
+    '\u00a0Current', '\u00a0Alpha CDN', '\u00a0Alpha API', '\u00a0Beta',
+  ]);
+  await page.locator('.new-item').fill('alpha');
+  await expect(page.locator('.xswitch-tabs .label')).toHaveText(['\u00a0Alpha CDN', '\u00a0Alpha API']);
+});

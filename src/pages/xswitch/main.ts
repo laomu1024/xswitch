@@ -29,6 +29,7 @@ import {
   getEditingConfigKey,
   setEditingConfigKey,
   setConfigItems,
+  setConfigItemPinned,
   getConfigItems,
   removeUnusedItems,
   exportAllConfigs,
@@ -39,6 +40,8 @@ import {
 } from '../../chrome-storage';
 import type { ExportConfigData } from '../../chrome-storage';
 import { getEditorConfig } from '../../editor-config';
+import { getDisplayItems } from '../../config-display';
+import PushpinFilled from '@ant-design/icons-svg/es/asn/PushpinFilled';
 
 import './xswitch.css';
 
@@ -47,6 +50,7 @@ interface ConfigItem {
   id: string;
   name: string;
   active: boolean;
+  pinnedAt?: number;
 }
 
 let items: ConfigItem[] = [];
@@ -98,7 +102,7 @@ function debouncedSave() {
 function renderTabs() {
   tabsEl.innerHTML = '';
   const query = newInput.value.trim().toLocaleLowerCase();
-  const visibleItems = items.filter((item) => item.name.toLocaleLowerCase().includes(query));
+  const visibleItems = getDisplayItems(items).filter((item) => item.name.toLocaleLowerCase().includes(query));
   if (!visibleItems.length) {
     const empty = createEl('li', { className: 'search-empty', role: 'status' }, 'No matches. Press Enter to add a rule.');
     tabsEl.appendChild(empty);
@@ -126,6 +130,23 @@ function renderTabs() {
     // label
     const label = createEl('span', { className: 'label' }, `\u00a0${item.name}`);
     li.appendChild(label);
+
+    if (item.pinnedAt && item.id !== '0') {
+      const pin = createEl('span', { className: 'pin-icon', title: 'Pinned', 'aria-label': 'Pinned' });
+      const definition = PushpinFilled.icon;
+      if (typeof definition !== 'function') {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        Object.entries(definition.attrs).forEach(([key, value]) => svg.setAttribute(key, String(value)));
+        svg.setAttribute('aria-hidden', 'true');
+        definition.children?.forEach((child) => {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', child.tag);
+          Object.entries(child.attrs).forEach(([key, value]) => path.setAttribute(key, String(value)));
+          svg.appendChild(path);
+        });
+        pin.appendChild(svg);
+      }
+      li.appendChild(pin);
+    }
 
     // more icon (非 Current 项)
     if (item.id !== '0') {
@@ -221,6 +242,15 @@ function showItemMenu(item: ConfigItem, anchor: Element) {
 
   menu.appendChild(renameBtn);
   menu.appendChild(deleteBtn);
+  const pinBtn = createEl('div', { className: 'xs-menu-item' }, item.pinnedAt ? 'Unpin' : 'Pin to top');
+  pinBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    removeExistingMenu();
+    items = await setConfigItemPinned(item.id, !item.pinnedAt);
+    renderTabs();
+    tabsEl.scrollTop = 0;
+  });
+  menu.appendChild(pinBtn);
   document.body.appendChild(menu);
 
   setTimeout(() => {

@@ -4,6 +4,7 @@ import type { InputRef } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   EditTwoTone,
+  PushpinFilled,
   QuestionCircleOutlined,
   CodeTwoTone,
   MoreOutlined,
@@ -41,6 +42,7 @@ import {
   getEditingConfigKey,
   setEditingConfigKey,
   setConfigItems,
+  setConfigItemPinned,
   getConfigItems,
   removeUnusedItems,
   exportAllConfigs,
@@ -51,11 +53,13 @@ import {
 } from '../../chrome-storage';
 import type { ExportConfigData } from '../../chrome-storage';
 import { getEditorConfig } from '../../editor-config';
+import { getDisplayItems } from '../../config-display';
 
 interface ConfigItem {
   id: string;
   name: string;
   active: boolean;
+  pinnedAt?: number;
 }
 
 let editor: any;
@@ -518,6 +522,15 @@ export default function XSwitch() {
         confirmDelete(item);
       },
     },
+    {
+      key: 'pin',
+      label: item.pinnedAt ? 'Unpin' : 'Pin to top',
+      onClick: async ({ domEvent }) => {
+        domEvent.stopPropagation();
+        setItems(await setConfigItemPinned(item.id, !item.pinnedAt));
+        if (tabsRef.current) tabsRef.current.scrollTop = 0;
+      },
+    },
   ];
 
   return (
@@ -528,7 +541,7 @@ export default function XSwitch() {
             {!items.some((item) => item.name.toLocaleLowerCase().includes(newItem.trim().toLocaleLowerCase())) && (
               <li className="search-empty" role="status">No matches. Press Enter to add a rule.</li>
             )}
-            {items.filter((item) => item.name.toLocaleLowerCase().includes(newItem.trim().toLocaleLowerCase())).map((item) => (
+            {getDisplayItems(items).filter((item) => item.name.toLocaleLowerCase().includes(newItem.trim().toLocaleLowerCase())).map((item) => (
               <li
                 key={item.id}
                 id={item.id}
@@ -573,6 +586,7 @@ export default function XSwitch() {
                 ) : (
                   <span className="label">&nbsp;{item.name}</span>
                 )}
+                {!!item.pinnedAt && item.id !== '0' && <PushpinFilled className="pin-icon" title="Pinned" aria-label="Pinned" />}
                 {item.id !== '0' && item.id !== renamingKey && (
                   <Dropdown
                     menu={{ items: getMenuItems(item) }}
