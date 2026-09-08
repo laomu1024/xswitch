@@ -90,7 +90,14 @@ html, body {
   text-overflow: ellipsis;
 }
 .xswitch-tabs .more-icon {
-  display: none;
+  display: inline-flex;
+  visibility: hidden;
+  box-sizing: border-box;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
   font-size: 16px;
   padding: 2px 4px;
@@ -99,7 +106,7 @@ html, body {
   color: #595959;
 }
 .xswitch-tabs li:hover .more-icon {
-  display: inline-flex;
+  visibility: visible;
   opacity: 0.6;
 }
 .xswitch-tabs li:hover .more-icon:hover {
@@ -131,7 +138,7 @@ html, body {
   height: 26px;
   border: 1px solid #d9d9d9;
   border-radius: 4px;
-  padding: 0 28px;
+  padding: 0 28px 0 8px;
   font-size: 13px;
   outline: none;
   box-sizing: border-box;
@@ -149,20 +156,6 @@ html, body {
   padding: 2px;
 }
 .xswitch-new-item-container .confirm-button:hover { color: #40a9ff; }
-.xswitch-new-item-container .search-icon {
-  position: absolute;
-  top: 11px;
-  left: 13px;
-  width: 24px;
-  height: 24px;
-  padding: 4px;
-  box-sizing: border-box;
-  border: 0;
-  background: transparent;
-  color: #8c8c8c;
-  pointer-events: none;
-}
-.search-icon svg { display: block; width: 16px; height: 16px; fill: currentColor; }
 
 /* ---- 编辑器区域 ---- */
 .xswitch-container {

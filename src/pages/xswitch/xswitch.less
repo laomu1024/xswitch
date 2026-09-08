@@ -51,7 +51,14 @@ body {
         opacity: 0;
       }
       .more-icon {
-        display: none;
+        display: inline-flex;
+        visibility: hidden;
+        box-sizing: border-box;
+        flex: 0 0 24px;
+        width: 24px;
+        height: 24px;
+        align-items: center;
+        justify-content: center;
         opacity: 0;
         font-size: 16px;
         padding: 2px 4px;
@@ -79,7 +86,7 @@ body {
           }
         }
         .more-icon {
-          display: inline-flex;
+          visibility: visible;
           opacity: 0.6;
           &:hover {
             opacity: 1;
@@ -135,21 +142,7 @@ body {
     background: #fff;
     width: calc(100% - 20px);
     position: relative;
-    .new-item { padding-left: 28px; padding-right: 28px; }
-    .search-icon {
-      position: absolute;
-      top: 11px;
-      left: 13px;
-      width: 24px;
-      height: 24px;
-      padding: 4px;
-      box-sizing: border-box;
-      border: 0;
-      background: transparent;
-      color: #8c8c8c;
-      pointer-events: none;
-      svg { width: 16px; height: 16px; }
-    }
+    .new-item { padding-left: 8px; padding-right: 28px; }
     .confirm-button{
       position: absolute;
       right: 15px;
