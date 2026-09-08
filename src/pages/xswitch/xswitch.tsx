@@ -525,7 +525,10 @@ export default function XSwitch() {
       <div className="xswitch-wrapper">
         <div className="xswitch-left-area">
           <ul className="xswitch-tabs" ref={tabsRef}>
-            {items.map((item) => (
+            {!items.some((item) => item.name.toLocaleLowerCase().includes(newItem.trim().toLocaleLowerCase())) && (
+              <li className="search-empty" role="status">No matches. Press Enter to add a rule.</li>
+            )}
+            {items.filter((item) => item.name.toLocaleLowerCase().includes(newItem.trim().toLocaleLowerCase())).map((item) => (
               <li
                 key={item.id}
                 id={item.id}
@@ -589,11 +592,17 @@ export default function XSwitch() {
             <Input
               size="small"
               autoComplete="off"
-              placeholder="Add a rule"
+              placeholder="Search or add"
               className="new-item"
               value={newItem}
-              onChange={(e) => setNewItem(e.target.value)}
-              onPressEnter={add}
+              onChange={(e) => {
+                setNewItem(e.target.value);
+                if (tabsRef.current) tabsRef.current.scrollTop = 0;
+              }}
+              onPressEnter={(e) => { if (!e.nativeEvent.isComposing) add(); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && !e.nativeEvent.isComposing) setNewItem('');
+              }}
             />
             <EditTwoTone className="confirm-button" onClick={add} />
           </div>
