@@ -53,8 +53,17 @@ html, body {
   position: relative;
 }
 .xswitch-tabs li:hover { background: #efefef; }
-.xswitch-tabs li:first-of-type { border-top: 0; }
-.xswitch-tabs li:first-of-type .more-icon { display: none !important; }
+.xswitch-tabs li[id='0'] { border-top: 0; }
+.xswitch-tabs li[id='0'] .more-icon { display: none !important; }
+.xswitch-tabs li.search-empty {
+  padding: 12px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #8c8c8c;
+  white-space: normal;
+  cursor: default;
+  background: transparent;
+}
 .xswitch-tabs li.editing { border-color: #bfbfbf #fff #bfbfbf transparent; }
 .xswitch-tabs li.dragging { opacity: 0.4; }
 .xswitch-tabs li.dragover-top::before,
@@ -80,8 +89,23 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.xswitch-tabs .pin-icon {
+  display: inline-flex;
+  flex: 0 0 16px;
+  color: #1890ff;
+  font-size: 12px;
+  align-items: center;
+}
+.xswitch-tabs .pin-icon svg { width: 12px; height: 12px; fill: currentColor; }
 .xswitch-tabs .more-icon {
-  display: none;
+  display: inline-flex;
+  visibility: hidden;
+  box-sizing: border-box;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
   font-size: 16px;
   padding: 2px 4px;
@@ -90,7 +114,7 @@ html, body {
   color: #595959;
 }
 .xswitch-tabs li:hover .more-icon {
-  display: inline-flex;
+  visibility: visible;
   opacity: 0.6;
 }
 .xswitch-tabs li:hover .more-icon:hover {

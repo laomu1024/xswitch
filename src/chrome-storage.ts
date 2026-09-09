@@ -228,6 +228,18 @@ export function getConfigItems(): Promise<any> {
   });
 }
 
+export async function setConfigItemPinned(id: string, pinned: boolean): Promise<any[]> {
+  const items = await getConfigItems();
+  if (id === '0') return items;
+  const pinnedAt = Math.max(Date.now(), ...items.map((item: any) => (item.pinnedAt || 0) + 1));
+  const next = items.map((item: any) => item.id === id
+    ? { ...item, pinnedAt: pinned ? pinnedAt : 0 }
+    : item);
+  // Pinning affects presentation only; preserve ACTIVE_KEYS and execution order.
+  await new Promise<void>((resolve) => csmInstance.set({ [TAB_LIST]: next }, resolve));
+  return next;
+}
+
 export function setConfigItems(items?: any): Promise<object> {
   return new Promise((resolve) => {
     csmInstance.set(
