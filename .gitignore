@@ -37,3 +37,4 @@ package-lock.json
 ehthumbs.db
 Thumbs.db
 build
+build/background.min.js
