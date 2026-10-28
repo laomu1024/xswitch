@@ -35,6 +35,7 @@ XSwitch 是一款用于**重定向和转发 HTTP 请求 URL** 的 [Chrome 浏览
 **🔀 请求转发**
 
 - 支持**字符串替换**、**正则匹配**、**inline JavaScript** 三种规则模式
+- 支持**自定义请求头**：只注入 Header，不改变请求地址
 - 自动处理 **CORS 跨域**（支持 `withCredentials`）
 - 一键**禁用浏览器缓存**，确保加载最新资源
 - **全局启用开关**，随时启停所有规则
@@ -85,9 +86,18 @@ XSwitch 是一款用于**重定向和转发 HTTP 请求 URL** 的 [Chrome 浏览
   "cors": [
     "cors.a.com",
     "(.*).b.com"
+  ],
+  // 只增加请求头，不改变请求地址（匹配规则支持正则）
+  "headers": [
+    [
+      "https://api.example.com",
+      { "X-Debug": "1", "X-Env": "local" }
+    ]
   ]
 }
 ```
+
+`Host`、`Content-Length` 等浏览器保留的请求头无法修改。
 
 以前两条规则为例：访问 `https://alinw.alicdn.com/platform/daily-test/isDaily.js`，最终会被改写成 `https://g.alicdn.com/platform/daily-test/isDaily.json`。
 

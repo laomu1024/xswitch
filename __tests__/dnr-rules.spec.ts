@@ -1,4 +1,8 @@
-import { convertCaptureGroupSyntax } from '../src/dnr-utils';
+import {
+  convertCaptureGroupSyntax,
+  generateHeaderRules,
+  DNR_RESOURCE_TYPES,
+} from '../src/dnr-utils';
 
 describe('convertCaptureGroupSyntax', () => {
   describe('$N → \\N 基本转换', () => {
@@ -90,5 +94,76 @@ describe('convertCaptureGroupSyntax', () => {
     test('should handle consecutive $1$2$3', () => {
       expect(convertCaptureGroupSyntax('$1$2$3')).toBe('\\1\\2\\3');
     });
+  });
+});
+
+describe('generateHeaderRules', () => {
+  test('生成只修改请求头的规则，不重定向地址', () => {
+    const rules = generateHeaderRules([
+      ['https://api.example.com', { 'X-Debug': '1', 'X-Env': 'local' }],
+    ]);
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toEqual({
+      id: 20000,
+      priority: 1,
+      action: {
+        type: 'modifyHeaders',
+        requestHeaders: [
+          { header: 'X-Debug', operation: 'set', value: '1' },
+          { header: 'X-Env', operation: 'set', value: 'local' },
+        ],
+      },
+      condition: {
+        regexFilter: 'https://api.example.com',
+        resourceTypes: DNR_RESOURCE_TYPES,
+      },
+    });
+    expect(rules[0].action).not.toHaveProperty('redirect');
+  });
+
+  test('规则 ID 从指定起始值递增', () => {
+    const rules = generateHeaderRules(
+      [
+        ['a.com', { 'X-A': '1' }],
+        ['b.com', { 'X-B': '2' }],
+      ],
+      30000
+    );
+    expect(rules.map((rule) => rule.id)).toEqual([30000, 30001]);
+  });
+
+  test('非字符串取值转换为字符串，跳过 null/undefined', () => {
+    const rules = generateHeaderRules([
+      [
+        'a.com',
+        // @ts-ignore 用户手写配置可能出现 null/undefined
+        { 'X-Num': 1, 'X-Bool': true, 'X-Null': null, 'X-Undefined': undefined },
+      ],
+    ]);
+    expect(rules[0].action.requestHeaders).toEqual([
+      { header: 'X-Num', operation: 'set', value: '1' },
+      { header: 'X-Bool', operation: 'set', value: 'true' },
+    ]);
+  });
+
+  test('跳过空 header 或非法规则', () => {
+    expect(
+      generateHeaderRules([
+        // @ts-ignore
+        ['a.com', {}],
+        // @ts-ignore
+        ['a.com'],
+        // @ts-ignore
+        [null, { 'X-A': '1' }],
+        // @ts-ignore
+        'not-a-rule',
+      ])
+    ).toEqual([]);
+  });
+
+  test('空配置返回空数组', () => {
+    // @ts-ignore
+    expect(generateHeaderRules(undefined)).toEqual([]);
+    expect(generateHeaderRules([])).toEqual([]);
   });
 });

@@ -10,6 +10,7 @@ import {
   CLEAR_CACHE_ENABLED,
   CORS_ENABLED_STORAGE_KEY,
   PROXY_STORAGE_KEY,
+  HEADER_STORAGE_KEY,
   CORS_STORAGE,
   ACTIVE_KEYS,
   USE_CHROME_STORAGE_SYNC_FN,
@@ -23,7 +24,11 @@ import {
 } from './enums';
 import forward from './forward';
 import { ChromeStorageManager } from './chrome-storage';
-import { convertCaptureGroupSyntax } from './dnr-utils';
+import {
+  convertCaptureGroupSyntax,
+  generateHeaderRules,
+  DNR_RESOURCE_TYPES,
+} from './dnr-utils';
 
 const csmInstance = new ChromeStorageManager({
   useChromeStorageSyncFn: USE_CHROME_STORAGE_SYNC_FN,
@@ -38,12 +43,14 @@ let conf: StorageJSON = {
   0: {
     [PROXY_STORAGE_KEY]: [],
     [CORS_STORAGE]: [],
+    [HEADER_STORAGE_KEY]: [],
   },
 };
 
 interface SingleConfig {
   [PROXY_STORAGE_KEY]: Array<[]>;
   [CORS_STORAGE]: string[];
+  [HEADER_STORAGE_KEY]: Array<[string, Record<string, string>]>;
 }
 
 interface StorageJSON {
@@ -80,7 +87,8 @@ function syncUpdateIcon() {
     action.setBadgeBackgroundColor({ color: '#bfbfbf' });
   } else {
     const proxyLength = forward[JSON_CONFIG]?.[PROXY_STORAGE_KEY]?.length || 0;
-    action.setBadgeText({ text: String(proxyLength) });
+    const headerLength = forward[JSON_CONFIG]?.[HEADER_STORAGE_KEY]?.length || 0;
+    action.setBadgeText({ text: String(proxyLength + headerLength) });
     action.setBadgeBackgroundColor({ color: '#1890ff' });
   }
 }
@@ -95,6 +103,7 @@ function restoreExtensionState() {
       0: {
         [PROXY_STORAGE_KEY]: [],
         [CORS_STORAGE]: [],
+        [HEADER_STORAGE_KEY]: [],
       },
     },
     [ACTIVE_KEYS]: ['0'],
@@ -111,6 +120,7 @@ function restoreExtensionState() {
       forward[JSON_CONFIG] = {
         [PROXY_STORAGE_KEY]: [],
         [CORS_STORAGE]: [],
+        [HEADER_STORAGE_KEY]: [],
       };
       parseError = false;
     }
@@ -136,12 +146,13 @@ const dnr: any = (chrome as any).declarativeNetRequest;
  */
 function getActiveConfig(config: StorageJSON): any {
   const activeKeys = [...jsonActiveKeys];
-  const base =
+  const base: any =
     config && typeof config['0'] === 'object' && config['0'] ? config['0'] : {};
   const json: any = {
     ...base,
     [PROXY_STORAGE_KEY]: [...(base[PROXY_STORAGE_KEY] || [])],
     [CORS_STORAGE]: [...(base[CORS_STORAGE] || [])],
+    [HEADER_STORAGE_KEY]: [...(base[HEADER_STORAGE_KEY] || [])],
   };
   activeKeys.forEach((key: string) => {
     const item = config[key];
@@ -151,6 +162,9 @@ function getActiveConfig(config: StorageJSON): any {
       }
       if (item[CORS_STORAGE]) {
         json[CORS_STORAGE] = [...json[CORS_STORAGE], ...item[CORS_STORAGE]];
+      }
+      if (item[HEADER_STORAGE_KEY]) {
+        json[HEADER_STORAGE_KEY] = [...json[HEADER_STORAGE_KEY], ...item[HEADER_STORAGE_KEY]];
       }
     }
   });
@@ -181,7 +195,7 @@ export function generateRedirectRules(proxyRules: string[][], ruleIdStart = 1) {
       },
       condition: {
         regexFilter: from,
-        resourceTypes: ["main_frame", "sub_frame", "xmlhttprequest", "script", "stylesheet", "image", "font", "other"]
+        resourceTypes: DNR_RESOURCE_TYPES,
       }
     });
   }
@@ -209,7 +223,7 @@ function generateCORSRules(corsRules: string[], ruleIdStart = 10000) {
       },
       condition: {
         urlFilter: corsUrl,
-        resourceTypes: ["xmlhttprequest", "main_frame", "sub_frame", "script", "stylesheet", "image", "font", "other"]
+        resourceTypes: DNR_RESOURCE_TYPES,
       }
     });
   }
@@ -224,7 +238,11 @@ function generateCORSRules(corsRules: string[], ruleIdStart = 10000) {
  * updateDynamicRules 调用静默失败（且无异常被捕获），出现"开关已关闭但旧的转发规则
  * 仍然生效"的问题。
  */
-async function updateDNRRules(proxyRules: string[][], corsRules: string[]) {
+async function updateDNRRules(
+  proxyRules: string[][],
+  corsRules: string[],
+  headerRules: Array<[string, Record<string, string>]>
+) {
   try {
     const existing = await dnr.getDynamicRules();
     const removeRuleIds: number[] = Array.isArray(existing)
@@ -236,6 +254,7 @@ async function updateDNRRules(proxyRules: string[][], corsRules: string[]) {
       addRules: [
         ...generateRedirectRules(proxyRules, 1),
         ...generateCORSRules(corsRules, 10000),
+        ...generateHeaderRules(headerRules, 20000),
       ],
     });
   } catch (err) {
@@ -253,6 +272,7 @@ function refreshRulesFromStorage() {
       0: {
         [PROXY_STORAGE_KEY]: [],
         [CORS_STORAGE]: [],
+        [HEADER_STORAGE_KEY]: [],
       },
     },
     [ACTIVE_KEYS]: ['0'],
@@ -260,6 +280,7 @@ function refreshRulesFromStorage() {
   }, (result: any) => {
     let proxyRules: string[][] = [];
     let corsRules: string[] = [];
+    let headerRules: Array<[string, Record<string, string>]> = [];
     // 当扩展被关闭时，清空所有 DNR 规则，确保转发不再生效
     // setChecked(true) 存入 Enabled.YES = 启用，setChecked(false) 存入 Enabled.NO = 禁用
     const enabled = result[DISABLED] !== Enabled.NO;
@@ -267,8 +288,9 @@ function refreshRulesFromStorage() {
       const config = getActiveConfig(result[JSON_CONFIG]);
       proxyRules = config[PROXY_STORAGE_KEY] || [];
       corsRules = config[CORS_STORAGE] || [];
+      headerRules = config[HEADER_STORAGE_KEY] || [];
     }
-    updateDNRRules(proxyRules, corsRules);
+    updateDNRRules(proxyRules, corsRules, headerRules);
   });
 }
 

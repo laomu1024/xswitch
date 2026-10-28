@@ -35,6 +35,7 @@ XSwitch is a [Chrome extension][link-cws] for **redirecting and forwarding HTTP 
 **🔀 Request Forwarding**
 
 - Three rule modes: **string replacement**, **regex matching**, and **inline JavaScript**
+- **Custom request headers**: inject headers without changing the request URL
 - Automatic **CORS** handling (with `withCredentials` support)
 - One-click **browser cache disabling** to always load the latest resources
 - **Global switch** to enable or disable all rules at any time
@@ -87,9 +88,18 @@ Rules are executed **from top to bottom in the order they are defined**. Even af
   "cors": [
     "cors.a.com",
     "(.*).b.com"
+  ],
+  // Add request headers only, without changing the URL (pattern supports regex)
+  "headers": [
+    [
+      "https://api.example.com",
+      { "X-Debug": "1", "X-Env": "local" }
+    ]
   ]
 }
 ```
+
+Browser-controlled headers such as `Host` and `Content-Length` cannot be modified.
 
 📖 More details: [XSwitch documentation](https://yuque.com/jiushen/blog/xswitch-readme)
 

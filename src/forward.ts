@@ -15,6 +15,7 @@ import { Enabled, UrlType } from './enums';
 interface IFowardConfig {
   proxy?: string[][];
   cors?: string[];
+  headers?: Array<[string, Record<string, string>]>;
 }
 
 /**
