@@ -78,6 +78,22 @@ body {
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .config-error {
+        display: inline-flex;
+        flex: 0 0 14px;
+        width: 14px;
+        height: 14px;
+        margin-left: 4px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: #f5222d;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: help;
+      }
       .rename-input {
         flex: 1;
         margin-left: 4px;
@@ -99,15 +115,6 @@ body {
             opacity: 1;
             background: rgba(0, 0, 0, 0.06);
           }
-        }
-      }
-      &[id='0'] {
-        border-top: 0;
-        .delete-icon {
-          display: none !important;
-        }
-        .more-icon {
-          display: none !important;
         }
       }
       &.editing {

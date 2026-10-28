@@ -675,7 +675,9 @@ test.describe('Popup 功能测试', () => {
     // 菜单项应出现（原生 .xs-menu-item）
     await expect(page.locator('.xs-menu-item', { hasText: 'Export config' })).toBeVisible();
     await expect(page.locator('.xs-menu-item', { hasText: 'Import config' })).toBeVisible();
-    await expect(page.locator('.xs-menu-item', { hasText: 'Help / Docs' })).toBeVisible();
+    // Docs 入口已收纳到工具栏按钮，不再出现在更多菜单中
+    await expect(page.locator('.toolbar-docs')).toBeVisible();
+    await expect(page.locator('.xs-menu-item', { hasText: 'Docs' })).toHaveCount(0);
 
     await closePopup(page, cdp);
   });

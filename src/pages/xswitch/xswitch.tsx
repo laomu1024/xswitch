@@ -44,6 +44,7 @@ import {
   setConfigItems,
   setConfigItemPinned,
   getConfigItems,
+  getConfigErrors,
   removeUnusedItems,
   exportAllConfigs,
   importConfigs,
@@ -76,6 +77,7 @@ export default function XSwitch() {
   );
   const [newItem, setNewItem] = useState('');
   const [items, setItems] = useState<ConfigItem[]>([]);
+  const [configErrors, setConfigErrors] = useState<Record<string, string>>({});
   const [renamingKey, setRenamingKey] = useState('');
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<InputRef>(null);
@@ -92,6 +94,14 @@ export default function XSwitch() {
 
   const setEditorValue = useCallback((value: string) => {
     editor?.setValue(value);
+  }, []);
+
+  const configErrorTimerRef = useRef<number | undefined>(undefined);
+  const refreshConfigErrors = useCallback((delay = 0) => {
+    clearTimeout(configErrorTimerRef.current);
+    configErrorTimerRef.current = window.setTimeout(async () => {
+      setConfigErrors(await getConfigErrors());
+    }, delay);
   }, []);
 
   const setEditingKeyHandler = useCallback(
@@ -141,7 +151,10 @@ export default function XSwitch() {
     (async () => {
       const editingConfigKey = await getEditingConfigKey();
       const config = await getConfig(editingConfigKey);
-      const configItems = await getConfigItems();
+      const [configItems, errors] = await Promise.all([
+        getConfigItems(),
+        getConfigErrors(),
+      ]);
       await removeUnusedItems();
 
       if (cancelled) {
@@ -150,6 +163,7 @@ export default function XSwitch() {
 
       setEditingKey(editingConfigKey);
       setItems(Array.from(configItems as ConfigItem[]));
+      setConfigErrors(errors);
 
       window.require.config({ paths: { vs: MONACO_VS_PATH } });
       window.require([MONACO_CONTRIBUTION_PATH], () => {
@@ -162,7 +176,11 @@ export default function XSwitch() {
           getEditorConfig(config as string)
         );
 
-        saveConfig(editor.getValue(), editingConfigKey);
+        if (editingConfigKey) {
+          saveConfig(editor.getValue(), editingConfigKey).then(() =>
+            refreshConfigErrors()
+          );
+        }
 
         window.monaco.languages.registerCompletionItemProvider(LANGUAGE_JSON, {
           provideCompletionItems: () => {
@@ -192,7 +210,10 @@ export default function XSwitch() {
         });
 
         editor.onDidChangeModelContent(() => {
-          saveConfig(editor!.getValue(), editingKeyRef.current);
+          if (editingKeyRef.current) {
+            saveConfig(editor!.getValue(), editingKeyRef.current);
+            refreshConfigErrors(300);
+          }
         });
 
         editor.onDidScrollChange(() => {
@@ -217,11 +238,12 @@ export default function XSwitch() {
 
     return () => {
       cancelled = true;
+      clearTimeout(configErrorTimerRef.current);
       document.removeEventListener(KEY_DOWN, preventSave, false);
       editor?.dispose();
       editor = undefined;
     };
-  }, [setEditorValue]);
+  }, [setEditorValue, refreshConfigErrors]);
 
   const toggleButton = (value: boolean) => {
     setChecked(value);
@@ -275,6 +297,7 @@ export default function XSwitch() {
         mode
       );
       setItems(Array.from(nextItems as ConfigItem[]));
+      setConfigErrors(await getConfigErrors());
       // 刷新当前编辑项内容
       const currentKey = editingKeyRef.current;
       const config = await getConfig(currentKey);
@@ -325,10 +348,6 @@ export default function XSwitch() {
   };
 
   const dragStart = (ev: React.DragEvent<HTMLLIElement>) => {
-    if (ev.currentTarget.id === '0') {
-      ev.preventDefault();
-      return;
-    }
     ev.dataTransfer.setData('application/my-app', ev.currentTarget.id);
     ev.dataTransfer.effectAllowed = 'move';
     setDraggingKey(ev.currentTarget.id);
@@ -339,12 +358,7 @@ export default function XSwitch() {
     const li = (ev.target as HTMLElement).closest('li');
     if (li?.id) {
       const rect = li.getBoundingClientRect();
-      let isTop = ev.clientY - rect.top < rect.height / 2;
-      // Default "Current" item must always stay at top:
-      // never allow inserting another item above it.
-      if (li.id === '0') {
-        isTop = false;
-      }
+      const isTop = ev.clientY - rect.top < rect.height / 2;
       setDragoverKey(li.id);
       setDragoverPosition(isTop ? 'top' : 'bottom');
     }
@@ -366,10 +380,6 @@ export default function XSwitch() {
       const rect = targetLi.getBoundingClientRect();
       position = ev.clientY - rect.top < rect.height / 2 ? 'top' : 'bottom';
     }
-    // Default "Current" item must always stay at top.
-    if (targetId === '0') {
-      position = 'bottom';
-    }
     setDraggingKey('');
     setDragoverKey('');
     if (srcId && targetId) {
@@ -382,10 +392,6 @@ export default function XSwitch() {
     destItemId: string,
     position: 'top' | 'bottom'
   ) => {
-    // Default "Current" item is pinned at the top.
-    if (srcItemId === '0') {
-      return;
-    }
     if (srcItemId === destItemId) {
       return;
     }
@@ -454,11 +460,15 @@ export default function XSwitch() {
     }
     const next = items.filter((it) => it.id !== item.id);
     setItems(next);
-    if (i > 0 && next[i - 1]) {
-      await setEditingKeyHandler(next[i - 1].id);
-    }
     await setConfigItems(next);
     removeUnusedItems();
+    if (!next.length) {
+      setEditingKey('');
+      setEditingConfigKey('');
+      setEditorValue('');
+    } else if (item.id === editingKey) {
+      await setEditingKeyHandler(next[Math.min(i, next.length - 1)].id);
+    }
   };
 
   const startRename = (item: ConfigItem) => {
@@ -554,7 +564,7 @@ export default function XSwitch() {
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                draggable={item.id !== '0'}
+                draggable
                 onClick={() => onTabClick(item)}
                 onDragStart={dragStart}
                 onDragOver={dragOver}
@@ -564,7 +574,6 @@ export default function XSwitch() {
                 <Checkbox
                   checked={item.active}
                   onChange={(e) => setActive(item, e)}
-                  disabled={item.id === '0'}
                   onClick={(e) => e.stopPropagation()}
                 />
                 {item.id === renamingKey ? (
@@ -586,8 +595,18 @@ export default function XSwitch() {
                 ) : (
                   <span className="label">&nbsp;{item.name}</span>
                 )}
-                {!!item.pinnedAt && item.id !== '0' && <PushpinFilled className="pin-icon" title="Pinned" aria-label="Pinned" />}
-                {item.id !== '0' && item.id !== renamingKey && (
+                {configErrors[item.id] && (
+                  <span
+                    className="config-error"
+                    role="img"
+                    aria-label={configErrors[item.id]}
+                    title={configErrors[item.id]}
+                  >
+                    !
+                  </span>
+                )}
+                {!!item.pinnedAt && <PushpinFilled className="pin-icon" title="Pinned" aria-label="Pinned" />}
+                {item.id !== renamingKey && (
                   <Dropdown
                     menu={{ items: getMenuItems(item) }}
                     trigger={['click']}

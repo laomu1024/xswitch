@@ -13,7 +13,7 @@ import {
   FORMAT_DOCUMENT_CMD,
   ANYTHING,
   POPUP_HTML_PATH,
-  HELP_URL,
+  HELP_DOC_PATH,
   DEFAULT_DATA,
   DEFAULT_DUP_DATA,
   PLATFORM_MAC,
@@ -31,6 +31,7 @@ import {
   setConfigItems,
   setConfigItemPinned,
   getConfigItems,
+  getConfigErrors,
   removeUnusedItems,
   exportAllConfigs,
   importConfigs,
@@ -41,6 +42,7 @@ import {
 import type { ExportConfigData } from '../../chrome-storage';
 import { getEditorConfig } from '../../editor-config';
 import { getDisplayItems } from '../../config-display';
+import { installXSwitchApi } from '../../xswitch-api';
 import PushpinFilled from '@ant-design/icons-svg/es/asn/PushpinFilled';
 
 import './xswitch.css';
@@ -54,6 +56,7 @@ interface ConfigItem {
 }
 
 let items: ConfigItem[] = [];
+let configErrors: Record<string, string> = {};
 let editingKey = '0';
 let checked = true;
 let clearCacheEnabled = true;
@@ -92,10 +95,15 @@ function createEl<K extends keyof HTMLElementTagNameMap>(
 function debouncedSave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    if (editor) {
-      saveConfig(editor.getValue(), editingKey);
+    if (editor && editingKey) {
+      saveConfig(editor.getValue(), editingKey).then(refreshConfigErrors);
     }
   }, 300);
+}
+
+async function refreshConfigErrors() {
+  configErrors = await getConfigErrors();
+  renderTabs();
 }
 
 // ---- 渲染规则列表 ----
@@ -110,13 +118,12 @@ function renderTabs() {
   visibleItems.forEach((item) => {
     const li = createEl('li');
     li.id = item.id;
-    li.draggable = item.id !== '0';
+    li.draggable = true;
     if (item.id === editingKey) li.classList.add('editing');
 
     // checkbox
     const cb = createEl('input', { type: 'checkbox', className: 'tab-checkbox' }) as HTMLInputElement;
     cb.checked = item.active;
-    cb.disabled = item.id === '0';
     cb.addEventListener('change', () => {
       const next = items.map((i) =>
         i.id === item.id ? { ...i, active: cb.checked } : i
@@ -131,7 +138,19 @@ function renderTabs() {
     const label = createEl('span', { className: 'label' }, `\u00a0${item.name}`);
     li.appendChild(label);
 
-    if (item.pinnedAt && item.id !== '0') {
+    const configError = configErrors[item.id];
+    if (configError) {
+      const errorBadge = createEl('span', {
+        className: 'config-error',
+        title: configError,
+        role: 'img',
+        'aria-label': configError,
+      });
+      errorBadge.textContent = '!';
+      li.appendChild(errorBadge);
+    }
+
+    if (item.pinnedAt) {
       const pin = createEl('span', { className: 'pin-icon', title: 'Pinned', 'aria-label': 'Pinned' });
       const definition = PushpinFilled.icon;
       if (typeof definition !== 'function') {
@@ -148,22 +167,19 @@ function renderTabs() {
       li.appendChild(pin);
     }
 
-    // more icon (非 Current 项)
-    if (item.id !== '0') {
-      const more = createEl('span', { className: 'more-icon' }, '⋯');
-      more.addEventListener('click', (e) => {
-        e.stopPropagation();
-        showItemMenu(item, more);
-      });
-      li.appendChild(more);
-    }
+    // more icon
+    const more = createEl('span', { className: 'more-icon' }, '⋯');
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showItemMenu(item, more);
+    });
+    li.appendChild(more);
 
     // 点击切换
     li.addEventListener('click', () => switchTab(item.id));
 
     // 拖拽
     li.addEventListener('dragstart', (ev) => {
-      if (item.id === '0') { ev.preventDefault(); return; }
       (ev as DragEvent).dataTransfer!.setData('text/plain', item.id);
       (ev as DragEvent).dataTransfer!.effectAllowed = 'move';
       li.classList.add('dragging');
@@ -177,20 +193,15 @@ function renderTabs() {
       clearDragIndicators();
       const rect = li.getBoundingClientRect();
       const isTop = (ev as DragEvent).clientY - rect.top < rect.height / 2;
-      if (item.id === '0') {
-        li.classList.add('dragover-bottom');
-      } else {
-        li.classList.add(isTop ? 'dragover-top' : 'dragover-bottom');
-      }
+      li.classList.add(isTop ? 'dragover-top' : 'dragover-bottom');
     });
     li.addEventListener('drop', (ev) => {
       ev.preventDefault();
       clearDragIndicators();
       const srcId = (ev as DragEvent).dataTransfer!.getData('text/plain');
       const rect = li.getBoundingClientRect();
-      let position: 'top' | 'bottom' =
+      const position: 'top' | 'bottom' =
         (ev as DragEvent).clientY - rect.top < rect.height / 2 ? 'top' : 'bottom';
-      if (item.id === '0') position = 'bottom';
       reorderItem(srcId, item.id, position);
     });
 
@@ -205,7 +216,7 @@ function clearDragIndicators() {
 }
 
 function reorderItem(srcId: string, destId: string, position: 'top' | 'bottom') {
-  if (srcId === '0' || srcId === destId) return;
+  if (srcId === destId) return;
   const srcIdx = items.findIndex((i) => i.id === srcId);
   if (srcIdx < 0 || items.findIndex((i) => i.id === destId) < 0) return;
   const next = [...items];
@@ -297,12 +308,18 @@ function confirmDelete(item: ConfigItem) {
   const idx = items.findIndex((i) => i.id === item.id);
   if (idx < 0) return;
   items = items.filter((i) => i.id !== item.id);
-  if (idx > 0 && items[idx - 1]) {
-    switchTab(items[idx - 1].id);
-  }
   setConfigItems(items);
   removeUnusedItems();
-  renderTabs();
+  if (!items.length) {
+    editingKey = '';
+    setEditingConfigKey('');
+    if (editor) editor.setValue('');
+    renderTabs();
+  } else if (item.id === editingKey) {
+    switchTab(items[Math.min(idx, items.length - 1)].id);
+  } else {
+    renderTabs();
+  }
 }
 
 // ---- 切换规则组 ----
@@ -366,6 +383,15 @@ function renderToolbar() {
   });
   toolbar.appendChild(newTabLink);
 
+  // 帮助文档入口
+  const docsLink = createEl('a', { className: 'toolbar-action toolbar-docs', title: '帮助文档与规则示例', href: '#' });
+  docsLink.textContent = 'Docs';
+  docsLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    openLink(HELP_DOC_PATH, true);
+  });
+  toolbar.appendChild(docsLink);
+
   // 更多菜单
   const moreLink = createEl('a', { className: 'toolbar-action toolbar-more', title: 'More actions', href: '#' });
   moreLink.textContent = '⋯';
@@ -424,8 +450,6 @@ function showMoreMenu(anchor: Element) {
         (document.querySelector('.import-file-input') as HTMLInputElement)?.click();
       },
     },
-    { label: '---', onClick: () => {} },
-    { label: 'Help / Docs', onClick: () => { removeExistingMenu(); openLink(HELP_URL); } },
   ];
 
   menuItems.forEach(({ label, checked: isChecked, danger, onClick }) => {
@@ -496,6 +520,7 @@ async function performImport(data: ExportConfigData, mode: 'overwrite' | 'rename
   try {
     const { items: nextItems, updated, added, renamed } = await importConfigs(data, mode);
     items = Array.from(nextItems as ConfigItem[]);
+    configErrors = await getConfigErrors();
     const config = await getConfig(editingKey);
     if (editor) editor.setValue((config as string) || DEFAULT_DUP_DATA);
     renderTabs();
@@ -596,7 +621,9 @@ function initEditor(config: string) {
   editor = monaco.editor.create(editorContainer, getEditorConfig(config));
 
   // 初始保存
-  saveConfig(editor.getValue(), editingKey);
+  if (editingKey) {
+    saveConfig(editor.getValue(), editingKey).then(refreshConfigErrors);
+  }
 
   // 内容变化 → 防抖保存
   editor.onDidChangeModelContent(() => {
@@ -655,16 +682,59 @@ async function init() {
 
   renderToolbar();
 
+  // 暴露 window.xswitch，方便控制台或自动化脚本读写配置
+  installXSwitchApi({
+    onConfigChange: async (id) => {
+      configErrors = await getConfigErrors();
+      if (id === editingKey) {
+        const next = await getConfig(editingKey);
+        if (editor && typeof next === 'string' && next !== editor.getValue()) {
+          editor.setValue(next);
+        }
+      }
+      renderTabs();
+    },
+    onGroupsChange: async (removedId) => {
+      const previousIndex = removedId
+        ? items.findIndex((item) => item.id === removedId)
+        : -1;
+      items = Array.from(await getConfigItems()) as ConfigItem[];
+      if (removedId && removedId === editingKey) {
+        if (items.length) {
+          const nextIndex = Math.min(Math.max(previousIndex, 0), items.length - 1);
+          await switchTab(items[nextIndex].id);
+        } else {
+          editingKey = '';
+          setEditingConfigKey('');
+          if (editor) editor.setValue('');
+          renderTabs();
+        }
+        return;
+      }
+      renderTabs();
+    },
+    onStateChange: (state) => {
+      checked = state.enabled;
+      clearCacheEnabled = state.clearCacheEnabled;
+      corsEnabled = state.corsEnabled;
+      toggleEl.classList.toggle('xs-switch-checked', checked);
+      toggleEl.setAttribute('aria-checked', String(checked));
+      toggleEl.title = checked ? 'Disable proxy' : 'Enable proxy';
+    },
+  });
+
   // 并行读取所有初始状态（优化：原代码为串行 4 次 await）
-  const [editingConfigKey, configItems, enabledState, opts] = await Promise.all([
+  const [editingConfigKey, configItems, enabledState, opts, errors] = await Promise.all([
     getEditingConfigKey(),
     getConfigItems(),
     getChecked(),
     getOptions(),
+    getConfigErrors(),
   ]);
 
   editingKey = editingConfigKey;
   items = Array.from(configItems as ConfigItem[]);
+  configErrors = errors;
   checked = enabledState !== Enabled.NO;
   clearCacheEnabled = (opts as any).clearCacheEnabled !== Enabled.NO;
   corsEnabled = (opts as any).corsEnabled !== Enabled.NO;
