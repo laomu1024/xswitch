@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XSwitch 使用帮助 — 界面操作与规则编写</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --text: #1f2329;
+    --text-2: #5c6570;
+    --line: #e5e8ec;
+    --accent: #1677ff;
+    --accent-soft: #e8f1ff;
+    --code-bg: #0d1424;
+    --code-text: #d7deeb;
+    --code-key: #7dd3fc;
+    --code-str: #a5e8a0;
+    --code-com: #7c8496;
+    --warn-bg: #fff7e6;
+    --warn-line: #ffd591;
+    --ok-bg: #f0fbf3;
+    --ok-line: #b7e4c7;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  .layout { display: flex; }
+
+  /* 侧边目录 */
+  nav.toc {
+    width: 224px; flex-shrink: 0;
+    position: sticky; top: 0; align-self: flex-start;
+    height: 100vh; overflow: auto;
+    padding: 32px 8px 96px 20px;
+    border-right: 1px solid var(--line);
+    background: var(--panel);
+  }
+  nav.toc .toc-title { font-size: 12px; color: var(--text-2); letter-spacing: .08em; margin: 0 0 8px 12px; }
+  nav.toc a {
+    display: block; padding: 6px 12px; border-radius: 8px;
+    color: var(--text-2); text-decoration: none; font-size: 13.5px;
+  }
+  nav.toc a:hover { background: var(--accent-soft); color: var(--accent); }
+  nav.toc a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  main { flex: 1; min-width: 0; padding: 32px clamp(20px, 4vw, 64px) 80px; }
+
+  header.hero {
+    background: linear-gradient(135deg, #0b57d0 0%, #1677ff 55%, #4096ff 100%);
+    color: #fff; border-radius: 16px; padding: 40px clamp(28px, 5vw, 72px); margin-bottom: 32px;
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: .01em; }
+  header.hero p { margin: 0; opacity: .92; max-width: 640px; }
+  header.hero .badges { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+  header.hero .badge {
+    background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35);
+    padding: 4px 12px; border-radius: 999px; font-size: 12.5px;
+  }
+
+  section { margin-bottom: 44px; }
+  h2 {
+    font-size: 21px; margin: 0 0 16px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  h2 .no { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 8px; }
+  h3 { font-size: 16px; margin: 26px 0 10px; }
+  p { margin: 10px 0; }
+  ul, ol { margin: 10px 0; padding-left: 24px; }
+  li { margin: 6px 0; }
+  strong { font-weight: 600; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 22px; margin: 14px 0;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .grid .card { margin: 0; }
+  .grid .card h4 { margin: 0 0 6px; font-size: 14.5px; }
+  .grid .card h4 .ico { margin-right: 6px; }
+  .grid .card p { margin: 0; font-size: 13px; color: var(--text-2); }
+
+  code.inline {
+    background: #eef1f5; border: 1px solid var(--line);
+    padding: 1px 6px; border-radius: 5px; font-size: 13px;
+    font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace;
+  }
+
+  .pre-wrap { position: relative; margin: 14px 0; }
+  pre {
+    background: var(--code-bg); color: var(--code-text);
+    border-radius: 12px; padding: 18px 20px; overflow: auto;
+    font: 13px/1.7 "SF Mono", Menlo, Monaco, "Courier New", monospace;
+    margin: 0;
+  }
+  pre .k { color: var(--code-key); }
+  pre .s { color: var(--code-str); }
+  pre .c { color: var(--code-com); }
+  .copy-btn {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(255,255,255,.1); color: #cfd6e4;
+    border: 1px solid rgba(255,255,255,.22); border-radius: 7px;
+    font-size: 12px; padding: 3px 10px; cursor: pointer;
+  }
+  .copy-btn:hover { background: rgba(255,255,255,.2); }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; background: var(--panel); }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; font-size: 13.5px; vertical-align: top; }
+  th { background: #f1f4f8; font-weight: 600; white-space: nowrap; }
+  td code.inline { white-space: nowrap; }
+
+  .tip, .warn { border-radius: 10px; padding: 12px 16px; margin: 14px 0; font-size: 13.5px; }
+  .tip { background: var(--ok-bg); border: 1px solid var(--ok-line); }
+  .warn { background: var(--warn-bg); border: 1px solid var(--warn-line); }
+  .tip::before { content: "💡 "; }
+  .warn::before { content: "⚠️ "; }
+
+  .tag {
+    display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); font-weight: 600; margin-right: 6px;
+  }
+
+  a.ext { color: var(--accent); text-decoration: none; }
+  a.ext:hover { text-decoration: underline; }
+
+  /* 左下角常驻 GitHub 入口 */
+  a.gh-float {
+    position: fixed; left: 20px; bottom: 20px; z-index: 30;
+    display: inline-flex; align-items: center; gap: 7px;
+    background: #24292f; color: #fff;
+    padding: 8px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; text-decoration: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .25);
+    transition: background .15s, transform .15s;
+  }
+  a.gh-float:hover { background: #0b57d0; transform: translateY(-1px); }
+  a.gh-float svg { width: 16px; height: 16px; fill: currentColor; }
+
+  footer {
+    margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
+    color: var(--text-2); font-size: 12.5px;
+  }
+
+  /* 在线 Demo */
+  .demo-grid { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr); gap: 16px; margin: 16px 0; }
+  .demo-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .demo-panel label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-2); }
+  .demo-panel textarea, .demo-panel input {
+    width: 100%; border: 1px solid var(--line); border-radius: 8px;
+    font: 12.5px/1.6 "SF Mono", Menlo, Monaco, "Courier New", monospace;
+    padding: 10px 12px; color: var(--text); background: #fbfcfe;
+  }
+  .demo-panel textarea { min-height: 300px; resize: vertical; }
+  .demo-panel input { margin-bottom: 10px; }
+  .demo-run-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; padding: 8px 22px; cursor: pointer;
+  }
+  .demo-run-btn:hover { background: #0b57d0; }
+  .demo-result { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .demo-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 13px; background: #fbfcfe; }
+  .demo-card .demo-card-title { font-weight: 600; margin-bottom: 4px; }
+  .demo-card.demo-hit { border-color: #b7e4c7; background: var(--ok-bg); }
+  .demo-card.demo-miss { border-color: var(--line); }
+  .demo-card.demo-err { border-color: var(--warn-line); background: var(--warn-bg); }
+  .demo-card .demo-line { font-family: "SF Mono", Menlo, Monaco, "Courier New", monospace; font-size: 12px; word-break: break-all; margin: 2px 0; }
+  .demo-card .demo-arrow { color: var(--accent); font-weight: 600; }
+
+  @media (max-width: 860px) {
+    nav.toc { display: none; }
+    main { padding: 18px 14px 60px; }
+    header.hero { padding: 26px 22px; }
+    header.hero h1 { font-size: 24px; }
+    .demo-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc" id="toc">
+  <p class="toc-title">目录</p>
+  <a href="#intro">简介</a>
+  <a href="#ui">界面与功能</a>
+  <a href="#rule-basics">规则基础结构</a>
+  <a href="#rule-proxy">proxy 转发规则</a>
+  <a href="#rule-cors">cors 跨域规则</a>
+  <a href="#rule-headers">headers 请求头规则</a>
+  <a href="#rule-order">执行顺序与分组</a>
+  <a href="#full-example">完整示例</a>
+  <a href="#demo">在线示例 Demo</a>
+  <a href="#js-api">通过 JS 操作配置</a>
+  <a href="#faq">常见问题</a>
+</nav>
+
+<main>
+
+<header class="hero">
+  <h1>XSwitch 使用帮助</h1>
+  <p>XSwitch 是一款基于 Manifest V3 <code style="font-family:inherit">declarativeNetRequest</code> 的 Chrome 请求转发插件：把线上资源代理到本地服务、注入调试请求头、处理 CORS 跨域，让本地开发更轻松。</p>
+  <p style="margin-top:10px">🏠 项目主页（源码 / 反馈 / 更新记录）：<a class="ext" style="color:#fff;text-decoration:underline" href="https://github.com/laomu1024/xswitch" target="_blank" rel="noopener">github.com/laomu1024/xswitch</a></p>
+  <div class="badges">
+    <span class="badge">Manifest V3</span>
+    <span class="badge">JSONC 注释支持</span>
+    <span class="badge">Monaco 编辑器</span>
+    <span class="badge">规则分组</span>
+    <span class="badge">内置在线 Demo</span>
+  </div>
+</header>
+
+<section id="intro">
+  <h2><span class="no">01</span>简介</h2>
+  <p>日常前端开发中，经常需要把 CDN 或线上接口的资源指向本地：改一行线上 JS 立刻用本地文件调试、让跨域接口直通 mock 服务、给请求附加调试 Header。XSwitch 通过一组 JSON 规则描述这些改写，插件会把规则编译成浏览器原生的 DNR 动态规则，在<strong>不发代理、不改 hosts</strong> 的情况下完成 URL 重定向与头部修改。</p>
+  <div class="grid">
+    <div class="card"><h4><span class="ico">🔀</span>URL 重定向</h4><p>整条精确替换、捕获组片段替换、inline JS（data: 协议）三种模式。</p></div>
+    <div class="card"><h4><span class="ico">🌐</span>CORS 跨域</h4><p>声明需要跨域的链接，自动为响应设置 Access-Control 头。</p></div>
+    <div class="card"><h4><span class="ico">📝</span>请求头注入</h4><p>headers 规则只加头不改地址，适合打标、切环境。</p></div>
+    <div class="card"><h4><span class="ico">🗂</span>分组管理</h4><p>多套配置随时勾选组合，按顺序合并执行。</p></div>
+  </div>
+</section>
+
+<section id="ui">
+  <h2><span class="no">02</span>界面与功能</h2>
+  <p>点击工具栏图标打开控制面板，主要区域如下：</p>
+  <table>
+    <thead><tr><th>区域 / 开关</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td>全局启用开关</td><td>总开关。关闭后所有转发规则立即失效（图标变灰），规则本身保留。</td></tr>
+      <tr><td>禁用缓存开关</td><td>开启后每次保存规则自动清缓存，确保加载最新资源。</td></tr>
+      <tr><td>CORS 开关</td><td>单独启停 <code class="inline">cors</code> 跨域改写，不影响转发规则。</td></tr>
+      <tr><td>左侧规则列表</td><td>展示所有规则分组。点击条目切换编辑对象，勾选框决定该分组是否参与生效；支持搜索过滤、Pin 置顶、hover 三点菜单重命名/删除、拖拽排序。分组名后出现红色 <code class="inline">!</code> 表示该组 JSON 格式有误，悬停可看具体原因，这组规则不会生效。</td></tr>
+      <tr><td>Monaco 编辑器</td><td>编辑当前条目的 JSONC 规则，<code class="inline">//</code> 注释会被保留；输入 <code class="inline">rule</code> 可快速补全一条代理规则模板。</td></tr>
+      <tr><td>保存（⌘/Ctrl + S）</td><td>保存后规则立即编译为 DNR 动态规则并生效，无需重启浏览器。</td></tr>
+      <tr><td>图标角标</td><td>蓝色数字 = 当前生效的 proxy + headers 规则条数；红色 <code class="inline">!</code> = 有规则被浏览器拒绝（如正则不合法），其余规则仍然生效，具体原因可在 Service Worker 控制台查看。</td></tr>
+      <tr><td>工具栏「Docs」按钮</td><td>帮助文档入口，点击在新标签页打开本帮助页（随插件内置、离线可用）。</td></tr>
+      <tr><td>右上角「更多」菜单</td><td>导出全部配置为 JSON、导入 JSON（重名时可选覆盖/重命名导入）。</td></tr>
+    </tbody>
+  </table>
+  <div class="tip">导入的文件若与现有分组重名，可选择「覆盖导入」或「重命名导入」（自动追加时间戳后缀，如 <code class="inline">MyRule_20260612-180530</code>），也可取消。</div>
+</section>
+
+<section id="rule-basics">
+  <h2><span class="no">03</span>规则基础结构</h2>
+  <p>每个规则条目都是一个 JSONC 对象，最多包含三个顶层字段：<code class="inline">proxy</code>（转发）、<code class="inline">cors</code>（跨域）、<code class="inline">headers</code>（请求头注入）。字段均可省略，只写用到的部分。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre><span class="c">// 当前编辑条目的规则（// 开头是注释，不会参与匹配）</span>
+{
+  <span class="k">"proxy"</span>:  [ [<span class="s">"匹配到的地址"</span>, <span class="s">"替换后的地址"</span>], ... ],
+  <span class="k">"cors"</span>:   [ <span class="s">"需要跨域的地址"</span>, ... ],
+  <span class="k">"headers"</span>: [ [<span class="s">"匹配到的地址"</span>, { <span class="s">"头名"</span>: <span class="s">"头值"</span> }], ... ]
+}</pre></div>
+  <p><code class="inline">proxy</code> 的每条规则是一个<strong>二元数组</strong>：第 1 项是「匹配模式」，第 2 项是「替换目标」。插件会把配置编译成浏览器原生的 DNR 规则，不同字段的匹配语义有所不同：</p>
+  <table>
+    <thead><tr><th>字段</th><th>底层匹配形式</th><th>匹配语义</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">proxy</code> / <code class="inline">headers</code></td><td>RE2 正则（<code class="inline">regexFilter</code>）</td><td>正则必须匹配<strong>整条 URL</strong>（隐式全匹配），默认<strong>不区分大小写</strong></td></tr>
+      <tr><td><code class="inline">cors</code></td><td>URL 匹配模式（<code class="inline">urlFilter</code>）</td><td>URL <strong>包含</strong>该子串即命中，<code class="inline">*</code> 为任意通配；<u>不支持正则</u>，<code class="inline">. ( )</code> 等按字面处理</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><strong>整条 URL 匹配</strong>：模式里写一条完整 URL（如 <code class="inline">https://a.com/x.js</code>），只有请求 URL 与它完全一致才命中；要覆盖某域名下的所有路径，需要补 <code class="inline">/(.*)</code> 之类的尾部。</li>
+    <li><strong>替换目标 = 全新 URL</strong>：转发后的地址由「目标」整串重建，原 URL 中没有被捕获组引用的部分会丢失，需要保留时要用 <code class="inline">(.*)</code> 捕获、目标里用 <code class="inline">$1</code>、<code class="inline">$2</code> 引用。</li>
+    <li><strong>RE2 限制</strong>：不支持先行断言 <code class="inline">(?=</code>、后行断言 <code class="inline">(?&lt;!</code> 等语法；不合法的规则会被浏览器拒绝。</li>
+    <li><strong>适用资源类型</strong>：页面（主框架/子框架）、XHR/fetch、脚本、样式表、图片、字体、其他；<u>WebSocket、媒体类请求不适用</u>。</li>
+  </ul>
+  <div class="warn">想让 <code class="inline">.</code>、<code class="inline">?</code>、<code class="inline">+</code> 在 proxy/headers 模式中按字面匹配时，请写成 <code class="inline">\.</code>、<code class="inline">\?</code>、<code class="inline">\+</code>；它们默认都是正则量词。cors 字段则相反——按字面处理，不是正则。</div>
+</section>
+
+<section id="rule-proxy">
+  <h2><span class="no">04</span>proxy 转发规则</h2>
+
+  <h3><span class="tag">模式 1</span>整条 URL 精确替换 —— 一条 URL 换另一条 URL</h3>
+  <p>模式写完整地址时，只有请求 URL 与它<strong>完全一致</strong>才命中（URL 带查询参数就不会命中），常用于把某个固定文件指到别处。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre><span class="k">"proxy"</span>: [
+  [
+    <span class="s">"https://unpkg.com/react@16.4.1/umd/react.production.min.js"</span>,
+    <span class="s">"https://unpkg.com/react@16.4.1/umd/react.development.js"</span>
+  ]
+]</pre></div>
+
+  <h3><span class="tag">模式 2</span>URL 局部片段替换 —— 换掉地址中的一段、保留其余</h3>
+  <p>要替换 URL 中间的片段（如整域名切换），模式必须用 <code class="inline">(.*)</code> 覆盖整条 URL 并把保留部分捕获，目标里再用 <code class="inline">$1</code>、<code class="inline">$2</code> 拼回，否则未引用的片段会丢失。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre><span class="k">"proxy"</span>: [
+  <span class="c">// 把 URL 里所有的 alinw 换成 g，其余部分原样保留</span>
+  [<span class="s">"(.*)alinw(.*)"</span>, <span class="s">"$1g$2"</span>],
+  <span class="c">// 接口域名整体切到本地 mock，保留路径</span>
+  [<span class="s">"https://api.real.com/(.*)"</span>, <span class="s">"http://127.0.0.1:9000/$1"</span>]
+]</pre></div>
+
+  <h3><span class="tag">模式 3</span>正则替换 —— 捕获组复用</h3>
+  <p>替换目标里用 <code class="inline">$1</code>、<code class="inline">$2</code> 引用第 1、2 个捕获组（按 JS <code class="inline">String.replace</code> 语义书写即可，插件会自动转换成 DNR 要求的 <code class="inline">\1</code> 语法）。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre><span class="k">"proxy"</span>: [
+  <span class="c">// https://www.sample.com/path1/path2/index.js → http://127.0.0.1:3000/index.js</span>
+  [
+    <span class="s">"(.*)/path1/path2/(.*)"</span>,
+    <span class="s">"http://127.0.0.1:3000/$2"</span>
+  ]
+]</pre></div>
+
+  <h3><span class="tag">模式 4</span>inline JS —— 直接返回一段代码内容</h3>
+  <p>目标写成 <code class="inline">data:</code> 协议 URL 时，请求不落地到任何服务器，而是直接返回编码在里面的内容，可用来打桩。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre><span class="k">"proxy"</span>: [
+  [
+    <span class="s">"https://alinw.alicdn.com/platform/daily-test/isDaily.js"</span>,
+    <span class="s">"data:text/javascript,window.__isDaily = true;"</span>
+  ]
+]</pre></div>
+
+  <div class="tip">把 HTTPS 资源转发到本地时，推荐写 <code class="inline">http://127.0.0.1:端口</code> 而不是 <code class="inline">localhost</code>，浏览器不会出安全提示。</div>
+</section>
+
+<section id="rule-cors">
+  <h2><span class="no">05</span>cors 跨域规则</h2>
+  <p>把需要跨域访问的接口地址写进 <code class="inline">cors</code> 数组，命中的响应会被设置为四个跨域响应头：<code class="inline">Access-Control-Allow-Origin: *</code>、<code class="inline">Access-Control-Allow-Methods</code>、<code class="inline">Access-Control-Allow-Headers: *</code>、<code class="inline">Access-Control-Allow-Credentials: true</code>。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre><span class="k">"cors"</span>: [
+  <span class="s">"mocks.a.com"</span>,      <span class="c">// 子串：URL 包含即命中</span>
+  <span class="s">"*.b.com"</span>,          <span class="c">// * 通配：任意前缀的 b.com</span>
+  <span class="s">"127.0.0.1:9000"</span>     <span class="c">// 本地 mock 服务</span>
+]</pre></div>
+  <ul>
+    <li><strong>数组项是 URL 匹配模式，不是正则</strong>：URL 包含该项即命中，<code class="inline">*</code> 表示任意长度通配；<code class="inline">.</code>、<code class="inline">(</code>、<code class="inline">)</code> 等按字面处理，<code class="inline">(.*).b.com</code> 这类正则写法在这里无效，要匹配子域请直接写 <code class="inline">*.b.com</code>。</li>
+    <li>DNR 静态规则只能注入固定值，<code class="inline">Access-Control-Allow-Origin</code> 只能是 <code class="inline">*</code>；携带凭据（<code class="inline">withCredentials</code>）的跨域请求遇到 <code class="inline">*</code> 仍会被浏览器拦截，这是 Manifest V3 的平台限制。此类场景建议用 <code class="inline">proxy</code> 把接口转发到与页面同源（或本地）的地址。</li>
+    <li>面板上的 CORS 开关用于单独启停这部分行为，不影响 proxy 转发。</li>
+  </ul>
+</section>
+
+<section id="rule-headers">
+  <h2><span class="no">06</span>headers 请求头规则</h2>
+  <p>格式为 <code class="inline">[匹配模式, 头键值对象]</code>：命中请求时注入/修改指定请求头，<strong>不改变 URL</strong>。匹配模式与 proxy 相同，是<strong>整条 URL 全匹配</strong>的 RE2 正则，因此覆盖域名下所有路径要补尾部。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre><span class="k">"headers"</span>: [
+  <span class="c">// 命中 api.example.com 下所有路径（含根路径）</span>
+  [
+    <span class="s">"https://api.example.com(/.*)?"</span>,
+    { <span class="s">"X-Debug"</span>: <span class="s">"1"</span>, <span class="s">"X-Env"</span>: <span class="s">"local"</span> }
+  ],
+  <span class="c">// 也支持捕获组等任意合法正则</span>
+  [
+    <span class="s">"(https://img.a.com)/v2/(.*)"</span>,
+    { <span class="s">"X-Canary"</span>: <span class="s">"1"</span> }
+  ]
+]</pre></div>
+  <ul>
+    <li>同名请求头已存在时会被<strong>覆盖</strong>（set 语义）。</li>
+    <li>头值允许数字、布尔，会自动转成字符串；值为 <code class="inline">null</code>/<code class="inline">undefined</code> 的项和空对象会被跳过。</li>
+  </ul>
+  <div class="warn"><code class="inline">Host</code>、<code class="inline">Content-Length</code> 等浏览器保留头无法修改，这是浏览器安全限制，并非插件缺陷。</div>
+</section>
+
+<section id="rule-order">
+  <h2><span class="no">07</span>执行顺序与分组</h2>
+  <ul>
+    <li><strong>一个请求只会命中一条规则</strong>：浏览器对每个请求只应用单条匹配规则，<u>不会链式改写</u>（与早期 MV2 版本不同）。既要换域名又要改路径时，请合并进一条规则用捕获组一次完成，不要依赖两条规则接力。</li>
+    <li><strong>避免规则重叠</strong>：多条规则的模式都能匹配同一请求时，最终生效哪条由浏览器决定且可能随版本变化。列表顺序决定规则的生成顺序，但请把互斥写清楚，而不是依赖顺序压过另一条。</li>
+    <li><strong>分组叠加</strong>：左侧列表中每个条目可独立勾选，所有分组地位相同。多个分组同时勾选时，按列表顺序把各自的 <code class="inline">proxy</code> / <code class="inline">cors</code> / <code class="inline">headers</code> 依次拼接后一起编译生效。</li>
+    <li><strong>Pin 只影响展示</strong>：置顶常用配置只调整列表展示顺序，<u>不改变</u>规则的实际执行顺序。</li>
+    <li><strong>全局开关优先级最高</strong>：关闭总开关后，任何分组的勾选都不再生效。</li>
+  </ul>
+</section>
+
+<section id="full-example">
+  <h2><span class="no">08</span>完整示例</h2>
+  <p>一个典型的「本地调试线上页面」配置：CDN 的 JS/CSS 指向本地 dev server，接口直通 mock 并放开跨域，同时给接口打上环境标。</p>
+  <div class="pre-wrap"><button class="copy-btn">复制</button><pre>{
+  <span class="k">"proxy"</span>: [
+    <span class="c">// 1. 线上 CDN 目录 → 本地构建产物目录（正则 + 捕获组）</span>
+    [
+      <span class="s">"(.*)/cdn/my-app/(.*)/pages/(.*)"</span>,
+      <span class="s">"http://127.0.0.1:8080/pages/$3"</span>
+    ],
+    <span class="c">// 2. 单个文件精确替换（请求 URL 需与之完全一致，不带查询参数）</span>
+    [
+      <span class="s">"https://g.alicdn.com/lib/config.js"</span>,
+      <span class="s">"http://127.0.0.1:8080/mock/config.js"</span>
+    ],
+    <span class="c">// 3. 接口域名整体切到 mock 服务，用 $1 保留原路径</span>
+    [<span class="s">"https://api.real.com/(.*)"</span>, <span class="s">"http://127.0.0.1:9000/$1"</span>],
+    <span class="c">// 4. inline 打桩：直接返回一段 JS</span>
+    [
+      <span class="s">"https://g.alicdn.com/entry/boot.js"</span>,
+      <span class="s">"data:text/javascript,console.log('boot stubbed');"</span>
+    ]
+  ],
+  <span class="k">"cors"</span>: [
+    <span class="s">"127.0.0.1:9000"</span>,   <span class="c">// urlFilter：子串命中</span>
+    <span class="s">"*.mock.test"</span>        <span class="c">// * 通配任意前缀子域</span>
+  ],
+  <span class="k">"headers"</span>: [
+    [
+      <span class="s">"http://127.0.0.1:9000(/.*)?"</span>,
+      { <span class="s">"X-Env"</span>: <span class="s">"local"</span>, <span class="s">"X-Debug"</span>: <span class="s">"1"</span> }
+    ]
+  ]
+}</pre></div>
+</section>
+
+<section id="demo">
+  <h2><span class="no">09</span>在线示例 Demo</h2>
+  <p>内置了一份完整规则配置。可直接编辑配置、修改测试 URL，点击「运行匹配」查看各字段的实际命中结果——匹配逻辑与插件编译出的 DNR 规则一致：<code class="inline">proxy</code>/<code class="inline">headers</code> 按正则整条 URL 全匹配，<code class="inline">cors</code> 按子串 + <code class="inline">*</code> 通配匹配。</p>
+  <div class="demo-grid">
+    <div class="demo-panel">
+      <label>规则配置（JSONC，支持 // 注释）</label>
+      <textarea id="demo-config" spellcheck="false">{
+  "proxy": [
+    // 1. 线上 CDN 目录 → 本地构建产物（正则 + 捕获组）
+    ["(.*)/cdn/my-app/(.*)/pages/(.*)", "http://127.0.0.1:8080/pages/$3"],
+    // 2. 单个文件精确替换（URL 需完全一致）
+    ["https://g.alicdn.com/lib/config.js", "http://127.0.0.1:8080/mock/config.js"],
+    // 3. 接口域名切换，用 $1 保留路径
+    ["https://api.real.com/(.*)", "http://127.0.0.1:9000/$1"],
+    // 4. inline 打桩
+    ["https://g.alicdn.com/entry/boot.js", "data:text/javascript,console.log('stub');"]
+  ],
+  "cors": [
+    "127.0.0.1:9000",
+    "*.mock.test"
+  ],
+  "headers": [
+    ["http://127.0.0.1:9000(/.*)?", { "X-Env": "local", "X-Debug": "1" }]
+  ]
+}</textarea>
+    </div>
+    <div class="demo-panel">
+      <label>测试 URL</label>
+      <input id="demo-url" value="https://g.alicdn.com/cdn/my-app/1.2.3/pages/home.js" spellcheck="false">
+      <label style="margin-top:6px">其他可试 URL（替换上面输入框）</label>
+      <div class="demo-line" style="font-size:12px;color:var(--text-2);word-break:break-all;margin:0 0 12px">
+        https://g.alicdn.com/lib/config.js<br>
+        https://api.real.com/user/list?page=2<br>
+        https://a.mock.test/data.json<br>
+        http://127.0.0.1:9000/api/v1/order
+      </div>
+      <button id="demo-run" class="demo-run-btn">▶ 运行匹配</button>
+      <div id="demo-result" class="demo-result"></div>
+    </div>
+  </div>
+  <div class="warn">Demo 为便于理解按 proxy / cors / headers 分字段展示；实际浏览器中<strong>每个请求只会应用一条</strong>匹配到的规则，请避免让多条规则的模式互相重叠。</div>
+</section>
+
+<section id="js-api">
+  <h2><span class="no">10</span>通过 JS 操作配置（自动化 / Agent）</h2>
+  <p>在新标签页打开 <code class="inline">chrome-extension://&lt;插件ID&gt;/XSwitch.html</code>，页面会在 <code class="inline">window</code> 上暴露全局对象 <code class="inline">xswitch</code>。在 DevTools 控制台或自动化工具（Playwright、浏览器 MCP 等）中执行 JS 即可读取、修改配置：修改写入 <code class="inline">chrome.storage.local</code> 后，Service Worker 会立即重建 DNR 规则，当前页面的列表、编辑器与开关也会同步刷新。</p>
+  <pre>// 总开关与选项状态：{ enabled, clearCacheEnabled, corsEnabled }
+await xswitch.getState()
+
+// 分组列表：名称、是否勾选、配置详情、JSON 错误
+await xswitch.list()
+// [{ id: '0', name: 'Current', active: true, pinnedAt: 0,
+//    jsonc: '{...}', config: { proxy: [...] }, error: '' }]
+
+// 按名称或 id 查询单个分组，不存在返回 null
+await xswitch.get('Current')
+
+// 新建分组（名称重复会报错），不传配置时初始为 {}
+await xswitch.add('mock', { cors: ['m.api.com'] })
+
+// 更新配置：传对象或 JSONC 字符串；格式非法直接抛错且不写入
+await xswitch.set('Current', {
+  proxy: [['https://cdn.example.com/(.*)', 'http://localhost:3000/$1']]
+})
+await xswitch.set('Current', '{ "proxy": [] }')
+
+// 删除分组（同时清理该组配置与生效项）
+await xswitch.remove('mock')
+
+// 勾选/取消勾选分组
+await xswitch.setActive('Current', false)
+
+// 修改总开关与选项：getState() 的字段都支持，未传的保持不变
+await xswitch.setState({ enabled: false })
+await xswitch.setState({ corsEnabled: false })</pre>
+  <table>
+    <thead><tr><th>方法</th><th>说明</th><th>返回</th></tr></thead>
+    <tbody>
+      <tr><td><code class="inline">xswitch.list()</code></td><td>列出全部分组</td><td>数组，每项含 <code class="inline">id</code>、<code class="inline">name</code>、<code class="inline">active</code>、<code class="inline">pinnedAt</code>、<code class="inline">jsonc</code>、<code class="inline">config</code>、<code class="inline">error</code></td></tr>
+      <tr><td><code class="inline">xswitch.get(nameOrId)</code></td><td>按名称或 id 查询单个分组</td><td>分组对象，不存在为 <code class="inline">null</code></td></tr>
+      <tr><td><code class="inline">xswitch.add(name, config?)</code></td><td>新建分组，名称重复时报错</td><td>创建后的分组对象</td></tr>
+      <tr><td><code class="inline">xswitch.set(nameOrId, config)</code></td><td>更新分组配置，<code class="inline">config</code> 可为对象或 JSONC 字符串</td><td>更新后的分组对象</td></tr>
+      <tr><td><code class="inline">xswitch.remove(nameOrId)</code></td><td>删除分组，并清理其配置与生效项</td><td>被删除的分组对象</td></tr>
+      <tr><td><code class="inline">xswitch.setActive(nameOrId, active)</code></td><td>勾选 / 取消勾选分组</td><td>更新后的分组对象</td></tr>
+      <tr><td><code class="inline">xswitch.getState()</code></td><td>读取总开关与选项状态</td><td><code class="inline">{ enabled, clearCacheEnabled, corsEnabled }</code></td></tr>
+      <tr><td><code class="inline">xswitch.setState(state)</code></td><td>按字段更新 <code class="inline">getState()</code> 的任意字段（<code class="inline">enabled</code>、<code class="inline">clearCacheEnabled</code>、<code class="inline">corsEnabled</code>），未传字段保持不变</td><td>最新的 state</td></tr>
+    </tbody>
+  </table>
+  <div class="tip">写操作（<code class="inline">add</code> / <code class="inline">set</code>）都会先校验 JSONC：格式有误时直接抛出错误，配置不会写入。分组是否生效由两层决定：该组 <code class="inline">active</code> 为 <code class="inline">true</code>，且 <code class="inline">getState().enabled</code> 同为 <code class="inline">true</code>；<code class="inline">error</code> 非空的分组不会生效。</div>
+  <div class="warn">请在新标签页打开该地址再操作；点击工具栏图标打开的弹出窗口失焦后会自动关闭，脚本随之中断。</div>
+</section>
+
+<section id="faq">
+  <h2><span class="no">11</span>常见问题</h2>
+  <div class="card">
+    <h3 style="margin-top:0">Q1：规则保存了但没有生效？</h3>
+    <p>依次检查：① 全局开关是否打开（图标应为蓝色）；② 该规则所在<strong>分组是否已勾选</strong>，只编辑未勾选的分组不会生效；③ 分组名旁是否有红色 <code class="inline">!</code>（该组 JSON 格式错误，规则不会生效，悬停可看原因）；④ 角标是否为红色 <code class="inline">!</code>（有规则被浏览器拒绝，见 Q2）；⑤ 浏览器可能缓存了旧资源，打开「禁用缓存」开关再强刷（⌘/Ctrl + Shift + R）。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q2：角标显示红色 <code class="inline">!</code>，部分规则被跳过？</h3>
+    <p>说明有规则被浏览器判定非法、未编译进 DNR（其余规则仍然生效）。常见原因：正则使用了 RE2 不支持的先行/后行断言（<code class="inline">(?=</code>、<code class="inline">(?&lt;!</code>）等语法；<code class="inline">proxy</code>/<code class="inline">headers</code> 的模式无法整条匹配 URL。具体哪条被拒可在扩展的 Service Worker 控制台查看日志。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q3：捕获组引用该写 <code class="inline">$1</code> 还是 <code class="inline">\1</code>？</h3>
+    <p>按 <code class="inline">$1</code>、<code class="inline">$2</code> 写即可。DNR 原生使用 <code class="inline">\1</code> 语法，插件在编译规则时会自动完成 <code class="inline">$N → \N</code> 的转换。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q4：转发命中了，但原 URL 的路径/参数丢了？</h3>
+    <p>替换目标会整串重建新 URL，没有被捕获组引用的部分不会自动保留。把要保留的片段用 <code class="inline">(.*)</code> 捕获，例如 <code class="inline">["https://api.real.com/(.*)", "http://127.0.0.1:9000/$1"]</code>。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q5：<code class="inline">cors</code> 里写 <code class="inline">(.*).b.com</code> 这类正则为什么不命中？</h3>
+    <p><code class="inline">cors</code> 使用的是 URL 匹配模式（urlFilter），不是正则：URL 包含该子串即命中，<code class="inline">*</code> 为通配符，<code class="inline">.</code>、<code class="inline">(</code>、<code class="inline">)</code> 均按字面处理。匹配子域请直接写 <code class="inline">*.b.com</code> 或干脆写 <code class="inline">b.com</code>。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q6：带凭据（withCredentials）的跨域请求仍被拦截？</h3>
+    <p>Manifest V3 下插件只能注入固定响应头，<code class="inline">Access-Control-Allow-Origin</code> 恒为 <code class="inline">*</code>，浏览器规定凭据请求不允许 <code class="inline">*</code>。绕行方案：用 <code class="inline">proxy</code> 把接口转发到与页面同源或本地的地址。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q7：转发到本地后出现混合内容/安全提示？</h3>
+    <p>把本地目标写成 <code class="inline">http://127.0.0.1:端口</code> 而非 <code class="inline">http://localhost:端口</code>，Chrome 将 127.0.0.1 视为可信来源，不会拦截。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q8：怎么把规则分享给团队？</h3>
+    <p>「更多」菜单 →「导出配置」得到 JSON 文件；对方「导入配置」选择该文件即可。重名分组可选择覆盖或自动重命名（追加时间戳）。</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Q9：同时安装/开启多个版本的 XSwitch，会冲突吗？</h3>
+    <p>配置、分组勾选、开关状态、图标角标<strong>互不影响</strong>——存储和 DNR 规则 ID 都按扩展隔离，各版本读写的都是自己那份数据。真正会打架的是作用到网络上的规则：</p>
+    <ul>
+      <li><strong>同一 URL 的 proxy 规则</strong>：两个版本都匹配时只会应用一条。按 Chrome 的规则，动作类型相同（都是重定向）时<strong>最近安装的扩展</strong>胜出，与规则自身的 priority 无关。表现为旧版本的规则「配了却没生效」，而角标数字照常显示。</li>
+      <li><strong>cors / headers</strong>：修改不同的头可以叠加；修改同一个头（如 <code class="inline">Access-Control-Allow-Origin</code>）结果不确定，可能互相覆盖。</li>
+      <li><strong>快捷键 <code class="inline">Ctrl/⌘ + Shift + X</code></strong>：浏览器级唯一，后安装的扩展会注册失败，可在 <code class="inline">chrome://extensions/shortcuts</code> 查看并改键。</li>
+      <li><strong>禁用缓存</strong>：清的是整个浏览器的缓存，不区分是哪个扩展触发的。</li>
+    </ul>
+    <p>建议：做版本对比时把两个版本的匹配域名错开，不要覆盖同一批 URL；只是升级就从同一渠道覆盖安装（同一扩展 ID 会替换旧版），不要长期保留商店版 + 未打包版并存。排查「规则不生效」时，先确认 <code class="inline">chrome://extensions</code> 里是否还有另一个 XSwitch。</p>
+  </div>
+</section>
+
+<footer>
+  XSwitch（Manifest V3）· 项目地址：<a class="ext" href="https://github.com/laomu1024/xswitch" target="_blank" rel="noopener">github.com/laomu1024/xswitch</a> · 本页为独立帮助文档，可直接在浏览器打开。
+</footer>
+
+</main>
+</div>
+
+<a class="gh-float" href="https://github.com/laomu1024/xswitch" target="_blank" rel="noopener" title="XSwitch GitHub 项目主页">
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+  GitHub
+</a>
+
+<script src="help.js" defer></script>
+</body>
+</html>

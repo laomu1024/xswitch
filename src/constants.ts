@@ -67,6 +67,7 @@ export const MONACO_VS_PATH = process.env.NODE_ENV === 'production'
   : '/lib/monaco-editor/min/vs';
 export const MONACO_CONTRIBUTION_PATH = 'vs/language/json/monaco.contribution';
 export const HELP_URL = 'https://github.com/laomu1024/xswitch';
+export const HELP_DOC_PATH = 'docs/help.html';
 export const DEFAULT_FONT_FAMILY = 'Menlo, Monaco, "Courier New", monospace';
 export const PLATFORM_MAC = 'Mac';
 export const OPTIONS_SAVED = 'Options saved.';
@@ -109,7 +110,7 @@ export const DEFAULT_DATA = `{
   // add request headers without changing the url
   // "headers": [
     // [
-      // "https://api.example.com",
+      // "https://api.example.com(/.*)?",
       // { "X-Debug": "1", "X-Env": "local" }
     // ]
   // ]

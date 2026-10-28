@@ -101,6 +101,10 @@ const devConfig = {
         publicPath: '/images',
       },
       {
+        directory: path.resolve(__dirname, 'docs'),
+        publicPath: '/docs',
+      },
+      {
         directory: path.resolve(__dirname, 'dev'),
         publicPath: '/',
       },
