@@ -147,27 +147,24 @@ const dnr: any = (chrome as any).declarativeNetRequest;
  * 若原地合并会导致规则/数量被重复累加。
  */
 function getActiveConfig(config: StorageJSON): any {
-  const activeKeys = [...jsonActiveKeys];
-  const base: any =
-    config && typeof config['0'] === 'object' && config['0'] ? config['0'] : {};
   const json: any = {
-    ...base,
-    [PROXY_STORAGE_KEY]: [...(base[PROXY_STORAGE_KEY] || [])],
-    [CORS_STORAGE]: [...(base[CORS_STORAGE] || [])],
-    [HEADER_STORAGE_KEY]: [...(base[HEADER_STORAGE_KEY] || [])],
+    [PROXY_STORAGE_KEY]: [],
+    [CORS_STORAGE]: [],
+    [HEADER_STORAGE_KEY]: [],
   };
-  activeKeys.forEach((key: string) => {
-    const item = config[key];
-    if (item && key !== '0') {
-      if (item[PROXY_STORAGE_KEY]) {
-        json[PROXY_STORAGE_KEY] = [...json[PROXY_STORAGE_KEY], ...item[PROXY_STORAGE_KEY]];
-      }
-      if (item[CORS_STORAGE]) {
-        json[CORS_STORAGE] = [...json[CORS_STORAGE], ...item[CORS_STORAGE]];
-      }
-      if (item[HEADER_STORAGE_KEY]) {
-        json[HEADER_STORAGE_KEY] = [...json[HEADER_STORAGE_KEY], ...item[HEADER_STORAGE_KEY]];
-      }
+  jsonActiveKeys.forEach((key: string) => {
+    const item = config?.[key];
+    if (!item) {
+      return;
+    }
+    if (item[PROXY_STORAGE_KEY]) {
+      json[PROXY_STORAGE_KEY] = [...json[PROXY_STORAGE_KEY], ...item[PROXY_STORAGE_KEY]];
+    }
+    if (item[CORS_STORAGE]) {
+      json[CORS_STORAGE] = [...json[CORS_STORAGE], ...item[CORS_STORAGE]];
+    }
+    if (item[HEADER_STORAGE_KEY]) {
+      json[HEADER_STORAGE_KEY] = [...json[HEADER_STORAGE_KEY], ...item[HEADER_STORAGE_KEY]];
     }
   });
   return json;

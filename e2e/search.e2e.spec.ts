@@ -119,10 +119,10 @@ test('pin menu follows Delete, persists display order and preserves active rules
     await page.locator('.xs-menu-item').filter({ hasText: new RegExp(`^${label}$`) }).click();
   };
   await pin('2', 'Pin to top');
-  await expect(page.locator('.xswitch-tabs li').nth(1)).toHaveAttribute('id', '2');
+  await expect(page.locator('.xswitch-tabs li').nth(0)).toHaveAttribute('id', '2');
   await expect(page.locator('.xswitch-tabs li[id="2"] .pin-icon')).toBeVisible();
   await pin('3', 'Pin to top');
-  await expect(page.locator('.xswitch-tabs li').nth(1)).toHaveAttribute('id', '3');
+  await expect(page.locator('.xswitch-tabs li').nth(0)).toHaveAttribute('id', '3');
 
   const stored = await readState(page);
   expect(stored.tab_list.map((item: any) => item.id)).toEqual(before.tab_list.map((item: any) => item.id));
@@ -135,11 +135,11 @@ test('pin menu follows Delete, persists display order and preserves active rules
   await page.addStyleTag({ path: path.resolve(__dirname, '../build/xswitch.css') });
   await page.addScriptTag({ path: path.resolve(__dirname, '../build/xswitch.js') });
   await expect(page.locator('.xswitch-tabs .label')).toHaveText([
-    '\u00a0Current', '\u00a0Alpha CDN', '\u00a0Beta', '\u00a0Alpha API',
+    '\u00a0Alpha CDN', '\u00a0Beta', '\u00a0Current', '\u00a0Alpha API',
   ]);
   await pin('2', 'Unpin');
   await expect(page.locator('.xswitch-tabs .label')).toHaveText([
-    '\u00a0Current', '\u00a0Alpha CDN', '\u00a0Alpha API', '\u00a0Beta',
+    '\u00a0Alpha CDN', '\u00a0Current', '\u00a0Alpha API', '\u00a0Beta',
   ]);
   await page.locator('.new-item').fill('alpha');
   await expect(page.locator('.xswitch-tabs .label')).toHaveText(['\u00a0Alpha CDN', '\u00a0Alpha API']);

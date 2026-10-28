@@ -11,7 +11,7 @@ import {
   SYNC_STORAGE_DATA_HAS_BEEN_MIGARATED_TO_LOCAL,
   DEFAULT_DATA,
 } from './constants';
-import { JSONC2JSON, JSON_Parse } from './utils';
+import { JSONC2JSON, JSON_Parse, getConfigError } from './utils';
 import { Enabled } from './enums';
 
 interface ConfigStorage {
@@ -152,8 +152,15 @@ function checkAndSyncHistorialSyncStorageDataToLocal() {
           [JSON_CONFIG]: {},
         };
         hisData[TAB_LIST].forEach((tab: any)=>{
-          stash[JSONC_CONFIG][tab.id] = hisData[JSONC_CONFIG][tab.id];
-          stash[JSON_CONFIG][tab.id] = hisData[JSON_CONFIG][tab.id];
+          const jsonc = hisData[JSONC_CONFIG][tab.id];
+          const json = hisData[JSON_CONFIG][tab.id];
+          // 只迁移 sync 中真实存在的配置，避免为未使用 sync 的用户写入空配置
+          if (jsonc) {
+            stash[JSONC_CONFIG][tab.id] = jsonc;
+          }
+          if (json !== undefined) {
+            stash[JSON_CONFIG][tab.id] = json;
+          }
         })
 
         csmInstance.set({
@@ -178,6 +185,10 @@ if (process.env.NODE_ENV === 'production') {
 
 export function getConfig(editingConfigKey: string): Promise<any> {
   return new Promise((resolve) => {
+    if (!editingConfigKey) {
+      resolve('');
+      return;
+    }
     csmInstance.get({
       [JSONC_CONFIG]: {
         0: DEFAULT_DATA,
@@ -189,6 +200,47 @@ export function getConfig(editingConfigKey: string): Promise<any> {
       resolve(result[JSONC_CONFIG][editingConfigKey] || DEFAULT_DATA);
     });
   });
+}
+
+/**
+ * 一次性读取所有分组的 JSONC 文本，返回 id → 文本。未保存过的分组不会出现在结果里。
+ */
+export function getAllConfigs(): Promise<Record<string, string>> {
+  return new Promise((resolve) => {
+    csmInstance.get(
+      {
+        [JSONC_CONFIG]: {},
+      },
+      (result: any) => {
+        const raw =
+          result &&
+          result[JSONC_CONFIG] &&
+          typeof result[JSONC_CONFIG] === 'object' &&
+          !Array.isArray(result[JSONC_CONFIG])
+            ? result[JSONC_CONFIG]
+            : {};
+        resolve(raw);
+      }
+    );
+  });
+}
+
+/**
+ * 逐组校验已保存的 JSONC，返回 id → 错误信息。合法的分组不出现在结果里。
+ */
+export async function getConfigErrors(): Promise<Record<string, string>> {
+  const raw = await getAllConfigs();
+  const errors: Record<string, string> = {};
+  Object.keys(raw).forEach((id) => {
+    if (typeof raw[id] !== 'string') {
+      return;
+    }
+    const error = getConfigError(raw[id]);
+    if (error) {
+      errors[id] = error;
+    }
+  });
+  return errors;
 }
 
 export function getActiveKeys(): Promise<any> {
@@ -230,7 +282,6 @@ export function getConfigItems(): Promise<any> {
 
 export async function setConfigItemPinned(id: string, pinned: boolean): Promise<any[]> {
   const items = await getConfigItems();
-  if (id === '0') return items;
   const pinnedAt = Math.max(Date.now(), ...items.map((item: any) => (item.pinnedAt || 0) + 1));
   const next = items.map((item: any) => item.id === id
     ? { ...item, pinnedAt: pinned ? pinnedAt : 0 }
@@ -245,11 +296,9 @@ export function setConfigItems(items?: any): Promise<object> {
     csmInstance.set(
       {
         [TAB_LIST]: items.slice(),
-        [ACTIVE_KEYS]: items.map((item: any) => {
-          if (item.active) {
-            return item.id;
-          }
-        }),
+        [ACTIVE_KEYS]: items
+          .filter((item: any) => item.active)
+          .map((item: any) => item.id),
       },
       resolve
     );
@@ -575,27 +624,29 @@ export function importConfigs(
   });
 }
 
-export function removeUnusedItems(){
-  csmInstance.get({
-    [JSONC_CONFIG]: {},
-    [JSON_CONFIG]: {},
-    [TAB_LIST]: [{
-      id: '0',
-      name: 'Current',
-      active: true,
-    }],
-  }, (result: any) => {
-    let stash: any = {
+export function removeUnusedItems(): Promise<void> {
+  return new Promise((resolve) => {
+    csmInstance.get({
       [JSONC_CONFIG]: {},
       [JSON_CONFIG]: {},
-    };
-    result[TAB_LIST].forEach((tab: any)=>{
-      stash[JSONC_CONFIG][tab.id] = result[JSONC_CONFIG][tab.id];
-      stash[JSON_CONFIG][tab.id] = result[JSON_CONFIG][tab.id];
-    })
-    csmInstance.set(
-      stash,
-      ()=>{}
-    );
+      [TAB_LIST]: [{
+        id: '0',
+        name: 'Current',
+        active: true,
+      }],
+    }, (result: any) => {
+      let stash: any = {
+        [JSONC_CONFIG]: {},
+        [JSON_CONFIG]: {},
+      };
+      result[TAB_LIST].forEach((tab: any)=>{
+        stash[JSONC_CONFIG][tab.id] = result[JSONC_CONFIG][tab.id];
+        stash[JSON_CONFIG][tab.id] = result[JSON_CONFIG][tab.id];
+      })
+      csmInstance.set(
+        stash,
+        () => { resolve(); }
+      );
+    });
   });
 }
