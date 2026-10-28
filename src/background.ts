@@ -106,8 +106,7 @@ function restoreExtensionState() {
     jsonActiveKeys = result[ACTIVE_KEYS];
     if (result && result[JSON_CONFIG]) {
       conf = result[JSON_CONFIG];
-      const config = getActiveConfig(conf);
-      forward[JSON_CONFIG] = { ...config };
+      forward[JSON_CONFIG] = getActiveConfig(conf);
     } else {
       forward[JSON_CONFIG] = {
         [PROXY_STORAGE_KEY]: [],
@@ -129,23 +128,29 @@ function restoreExtensionState() {
 // 使用类型断言，避免TS报错
 const dnr: any = (chrome as any).declarativeNetRequest;
 
+/**
+ * 合并当前勾选的分组，生成实际生效的配置
+ *
+ * 返回新对象，不修改入参：徽章数量和 DNR 规则会基于同一份 conf 反复重算，
+ * 若原地合并会导致规则/数量被重复累加。
+ */
 function getActiveConfig(config: StorageJSON): any {
   const activeKeys = [...jsonActiveKeys];
-  const json = config['0'];
+  const base =
+    config && typeof config['0'] === 'object' && config['0'] ? config['0'] : {};
+  const json: any = {
+    ...base,
+    [PROXY_STORAGE_KEY]: [...(base[PROXY_STORAGE_KEY] || [])],
+    [CORS_STORAGE]: [...(base[CORS_STORAGE] || [])],
+  };
   activeKeys.forEach((key: string) => {
-    if (config[key] && key !== '0') {
-      if (config[key][PROXY_STORAGE_KEY]) {
-        if (!json[PROXY_STORAGE_KEY]) {
-          json[PROXY_STORAGE_KEY] = [];
-        }
-        json[PROXY_STORAGE_KEY] = [...json[PROXY_STORAGE_KEY], ...config[key][PROXY_STORAGE_KEY]];
+    const item = config[key];
+    if (item && key !== '0') {
+      if (item[PROXY_STORAGE_KEY]) {
+        json[PROXY_STORAGE_KEY] = [...json[PROXY_STORAGE_KEY], ...item[PROXY_STORAGE_KEY]];
       }
-
-      if (config[key][CORS_STORAGE]) {
-        if (!json[CORS_STORAGE]) {
-          json[CORS_STORAGE] = [];
-        }
-        json[CORS_STORAGE] = [...json[CORS_STORAGE], ...config[key][CORS_STORAGE]];
+      if (item[CORS_STORAGE]) {
+        json[CORS_STORAGE] = [...json[CORS_STORAGE], ...item[CORS_STORAGE]];
       }
     }
   });
@@ -272,13 +277,14 @@ refreshRulesFromStorage();
 
 // 监听 storage 变化，自动刷新规则
 chrome.storage.onChanged.addListener((changes) => {
-  refreshRulesFromStorage();
   if (changes[ACTIVE_KEYS]) {
-    jsonActiveKeys = changes[ACTIVE_KEYS].newValue;
+    jsonActiveKeys = changes[ACTIVE_KEYS].newValue || ['0'];
   }
   if (changes[JSON_CONFIG]) {
-    const config = getActiveConfig(changes[JSON_CONFIG].newValue);
-    forward[JSON_CONFIG] = { ...config };
+    const nextConfig = changes[JSON_CONFIG].newValue;
+    if (nextConfig && typeof nextConfig === 'object') {
+      conf = nextConfig;
+    }
   }
   if (changes[DISABLED]) {
     forward[DISABLED] = changes[DISABLED].newValue;
@@ -289,23 +295,14 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes[CORS_ENABLED_STORAGE_KEY]) {
     corsEnabled = changes[CORS_ENABLED_STORAGE_KEY].newValue === Enabled.YES;
   }
-  // 同步更新图标（此时 forward[DISABLED] 已从 changes 中更新）
+  // 徽章数量取决于「勾选的分组」，必须在这里同步重算：
+  // 勾选/取消分组只会改 ACTIVE_KEYS，若等异步读取后再重算，
+  // 徽章会停留在上一次的状态。
+  if (changes[JSON_CONFIG] || changes[ACTIVE_KEYS]) {
+    forward[JSON_CONFIG] = getActiveConfig(conf);
+  }
   syncUpdateIcon();
-  // 异步更新配置（不影响图标，只更新 forward[JSON_CONFIG]）
-  csmInstance.get({
-    [JSON_CONFIG]: {
-      0: {
-        [PROXY_STORAGE_KEY]: [],
-        [CORS_STORAGE]: [],
-      },
-    },
-  }, (result: any) => {
-    if (result && result[JSON_CONFIG]) {
-      conf = result[JSON_CONFIG];
-      const config = getActiveConfig(conf);
-      forward[JSON_CONFIG] = { ...config };
-    }
-  });
+  refreshRulesFromStorage();
 });
 
 function setBadgeAndBackgroundColor(
