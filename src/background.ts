@@ -37,7 +37,10 @@ const csmInstance = new ChromeStorageManager({
 let clearRunning: boolean = false;
 let clearCacheEnabled: boolean = true;
 let corsEnabled: boolean = true;
-let parseError: boolean = false;
+// 被 DNR 拒绝、未能生效的规则描述，非空时角标显示 '!'
+let invalidRuleMessages: string[] = [];
+let invalidRuleLogKey = '';
+let lastBatchRejectMessage = '';
 let jsonActiveKeys = ['0'];
 let conf: StorageJSON = {
   0: {
@@ -79,12 +82,12 @@ function syncUpdateIcon() {
   // 设置图标文件
   action.setIcon({ path: enabled ? BLUE_ICON_PATH : GREY_ICON_PATH });
   // 设置徽章
-  if (parseError) {
-    action.setBadgeText({ text: '!' });
-    action.setBadgeBackgroundColor({ color: '#f5222d' });
-  } else if (!enabled) {
+  if (!enabled) {
     action.setBadgeText({ text: 'OFF' });
     action.setBadgeBackgroundColor({ color: '#bfbfbf' });
+  } else if (invalidRuleMessages.length) {
+    action.setBadgeText({ text: '!' });
+    action.setBadgeBackgroundColor({ color: '#f5222d' });
   } else {
     const proxyLength = forward[JSON_CONFIG]?.[PROXY_STORAGE_KEY]?.length || 0;
     const headerLength = forward[JSON_CONFIG]?.[HEADER_STORAGE_KEY]?.length || 0;
@@ -122,7 +125,6 @@ function restoreExtensionState() {
         [CORS_STORAGE]: [],
         [HEADER_STORAGE_KEY]: [],
       };
-      parseError = false;
     }
 
     // 恢复启用/禁用状态
@@ -183,9 +185,11 @@ chrome.runtime.onStartup.addListener(() => {
 export function generateRedirectRules(proxyRules: string[][], ruleIdStart = 1) {
   const rules = [];
   let id = ruleIdStart;
-  for (const [from, to] of proxyRules) {
+  for (const item of proxyRules) {
+    // 条目结构异常时仍生成规则交给 DNR 校验，避免同步抛错中断本次更新
+    const [from, to] = Array.isArray(item) ? item : [];
     // DNR regexSubstitution uses \1, \2 syntax instead of JS $1, $2
-    const dnrTo = convertCaptureGroupSyntax(to);
+    const dnrTo = typeof to === 'string' ? convertCaptureGroupSyntax(to) : '';
     rules.push({
       id: id++,
       priority: 1,
@@ -230,6 +234,89 @@ function generateCORSRules(corsRules: string[], ruleIdStart = 10000) {
   return rules;
 }
 
+interface DnrRuleEntry {
+  rule: any;
+  description: string;
+}
+
+function describeDnrRule(rule: any): string {
+  const pattern = rule?.condition?.regexFilter || rule?.condition?.urlFilter || '';
+  if (rule?.action?.type === 'redirect') {
+    const to = String(rule.action.redirect?.regexSubstitution || '').replace(/\\(\d+)/g, '$$$1');
+    return `proxy: ${pattern} → ${to}`;
+  }
+  if (rule?.action?.responseHeaders) {
+    return `cors: ${pattern}`;
+  }
+  return `header: ${pattern}`;
+}
+
+async function getDynamicRuleIds(): Promise<number[]> {
+  const existing = await dnr.getDynamicRules();
+  return Array.isArray(existing) ? existing.map((rule: any) => rule.id) : [];
+}
+
+/**
+ * 追加规则；某次提交失败时二分重试，只为定位并跳过非法规则，
+ * 保证合法规则仍能生效。
+ */
+async function applyDnrRuleEntries(
+  entries: DnrRuleEntry[],
+  invalid: Array<{ description: string; error: unknown }>
+): Promise<void> {
+  if (!entries.length) {
+    return;
+  }
+  try {
+    await dnr.updateDynamicRules({ addRules: entries.map((entry) => entry.rule) });
+  } catch (err) {
+    if (entries.length === 1) {
+      invalid.push({ description: entries[0].description, error: err });
+      return;
+    }
+    const mid = Math.ceil(entries.length / 2);
+    await applyDnrRuleEntries(entries.slice(0, mid), invalid);
+    await applyDnrRuleEntries(entries.slice(mid), invalid);
+  }
+}
+
+function setInvalidDnrRules(invalid: Array<{ description: string; error: unknown }>): void {
+  invalidRuleMessages = invalid.map((item) => item.description);
+  const logKey = invalidRuleMessages.join('\n');
+  if (logKey && logKey !== invalidRuleLogKey) {
+    invalid.slice(0, 20).forEach((item) => {
+      console.error(`[XSwitch] 规则未生效（已跳过）: ${item.description} —`, item.error);
+    });
+    if (invalid.length > 20) {
+      console.error(`[XSwitch] 另有 ${invalid.length - 20} 条规则未生效`);
+    }
+  }
+  invalidRuleLogKey = logKey;
+  syncUpdateIcon();
+}
+
+async function applyDnrRulesNow(entries: DnrRuleEntry[]): Promise<void> {
+  const invalid: Array<{ description: string; error: unknown }> = [];
+  try {
+    await dnr.updateDynamicRules({
+      removeRuleIds: await getDynamicRuleIds(),
+      addRules: entries.map((entry) => entry.rule),
+    });
+    lastBatchRejectMessage = '';
+  } catch (err) {
+    // DNR 的更新是整批原子的：任一规则不合法（如 RE2 不支持 lookahead），
+    // 旧规则会继续生效而角标已按新配置显示。降级为分组应用，跳过非法规则。
+    const message = String(err);
+    if (message !== lastBatchRejectMessage) {
+      console.warn('[XSwitch] updateDynamicRules rejected the batch, retrying in chunks:', err);
+      lastBatchRejectMessage = message;
+    }
+    await dnr.updateDynamicRules({ removeRuleIds: await getDynamicRuleIds() });
+    await applyDnrRuleEntries(entries, invalid);
+  }
+  setInvalidDnrRules(invalid);
+}
+
 /**
  * 更新 DNR 动态规则
  *
@@ -237,30 +324,28 @@ function generateCORSRules(corsRules: string[], ruleIdStart = 10000) {
  * 早期实现会一次性传入 1~19999 全量 ID 作为 removeRuleIds，数组过大会导致
  * updateDynamicRules 调用静默失败（且无异常被捕获），出现"开关已关闭但旧的转发规则
  * 仍然生效"的问题。
+ *
+ * 连续变更（尤其是降级重试较慢时）必须串行执行，否则多次更新会交错。
  */
-async function updateDNRRules(
+let dnrUpdateChain: Promise<void> = Promise.resolve();
+
+function updateDNRRules(
   proxyRules: string[][],
   corsRules: string[],
   headerRules: Array<[string, Record<string, string>]>
-) {
-  try {
-    const existing = await dnr.getDynamicRules();
-    const removeRuleIds: number[] = Array.isArray(existing)
-      ? existing.map((rule: any) => rule.id)
-      : [];
+): void {
+  const entries: DnrRuleEntry[] = [
+    ...generateRedirectRules(proxyRules, 1),
+    ...generateCORSRules(corsRules, 10000),
+    ...generateHeaderRules(headerRules, 20000),
+  ].map((rule: any) => ({ rule, description: describeDnrRule(rule) }));
 
-    await dnr.updateDynamicRules({
-      removeRuleIds,
-      addRules: [
-        ...generateRedirectRules(proxyRules, 1),
-        ...generateCORSRules(corsRules, 10000),
-        ...generateHeaderRules(headerRules, 20000),
-      ],
+  dnrUpdateChain = dnrUpdateChain
+    .then(() => applyDnrRulesNow(entries))
+    .catch((err) => {
+      // 暴露非规则本身导致的失败（如 getDynamicRules 异常），避免静默不一致
+      console.error('[XSwitch] updateDynamicRules failed:', err);
     });
-  } catch (err) {
-    // 主动暴露 DNR 更新失败信息，避免静默失败导致开关状态与实际规则不一致
-    console.error('[XSwitch] updateDynamicRules failed:', err);
-  }
 }
 
 /**
